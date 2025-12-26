@@ -106,7 +106,7 @@ export const Game: React.FC<GameProps> = ({
 
     // 2. Khởi tạo BGM (Dùng thẻ Audio thường cho nhạc nền)
     // Dùng link nhạc miễn phí bản quyền
-    bgmRef.current = new Audio('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=game-music-loop-7-145285.mp3'); 
+    bgmRef.current = new Audio('/assets/bgm.mp3'); 
     bgmRef.current.loop = true;
     bgmRef.current.volume = 0.2; // Nhạc nền nhỏ
 
