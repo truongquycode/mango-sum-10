@@ -39,7 +39,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Timer
+  // Timer Logic
   useEffect(() => {
     if (timeLeft <= 0) {
       onGameOver(score);
@@ -61,6 +61,8 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
+    
+    // Tính toán dựa trên kích thước thực tế đang hiển thị
     const cellWidth = rect.width / GRID_COLS;
     const cellHeight = rect.height / GRID_ROWS;
 
@@ -86,6 +88,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     if (isProcessing) return; 
     const pos = getCellFromCoords(clientX, clientY, true); 
     if (pos) {
+      // Không cho kéo từ ô trống
       if (grid[pos.row][pos.col].isRemoved) return;
       setDragState({ isDragging: true, startPos: pos, currentPos: pos });
     }
@@ -124,43 +127,36 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
 
+  // --- LOGIC XỬ LÝ KHI ĂN ĐIỂM (ĐÃ SỬA) ---
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
+
+    // 1. Cộng điểm
     const points = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
     setScore(prev => prev + points);
 
+    // 2. Cộng thêm thời gian (BONUS TIME)
+    // Ví dụ: Cộng 3 giây khi ăn được điểm
+    setTimeLeft(prev => prev + 3);
+
+    // 3. Xóa ô (Không trọng lực, không refill)
     setGrid(prevGrid => {
+      // Clone grid
       const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
+      
+      // Chỉ đánh dấu là đã xóa (isRemoved = true)
+      // Ô đó sẽ trở thành khoảng trắng, các ô trên KHÔNG rớt xuống
       cellsToRemove.forEach(pos => {
         newGrid[pos.row][pos.col].isRemoved = true;
       });
+      
       return newGrid;
     });
 
+    // Mở khóa input nhanh hơn vì không cần chờ hiệu ứng rơi
     setTimeout(() => {
-      setGrid(prevGrid => {
-        const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
-        for (let c = 0; c < GRID_COLS; c++) {
-          let writeRow = GRID_ROWS - 1;
-          for (let r = GRID_ROWS - 1; r >= 0; r--) {
-            if (!newGrid[r][c].isRemoved) {
-              newGrid[writeRow][c] = newGrid[r][c];
-              writeRow--;
-            }
-          }
-          while (writeRow >= 0) {
-            newGrid[writeRow][c] = {
-              id: generateId(),
-              value: Math.floor(Math.random() * 9) + 1,
-              isRemoved: false,
-            };
-            writeRow--;
-          }
-        }
-        return newGrid;
-      });
       setIsProcessing(false);
-    }, 350);
+    }, 150);
   };
 
   const getCurrentSelectionSum = () => {
@@ -185,16 +181,17 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   // --- UI RENDER ---
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none">
+    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none overflow-hidden">
       
-      {/* SỬA Ở ĐÂY: max-w-3xl (768px) thay vì max-w-5xl để khung nhỏ lại như chế độ 75% */}
-      <div className="relative w-full max-w-3xl bg-[#00cf68] flex flex-col gap-2">
+      {/* Container chính: Giới hạn max-width để không bị quá bè trên màn hình rộng */}
+      <div className="flex flex-col gap-2 w-full max-w-4xl h-full max-h-full">
         
-        {/* Màn hình hiển thị */}
-        <div className="relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3">
+        {/* Màn hình hiển thị (Vùng xanh nhạt) */}
+        {/* 'flex-1 min-h-0' là mẹo quan trọng để flex child không bị tràn container cha */}
+        <div className="flex-1 min-h-0 relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3 overflow-hidden">
           
           {/* Lưới game */}
-          <div className="flex-1 relative">
+          <div className="flex-1 relative flex items-center justify-center">
              {/* Background caro */}
             <div className="absolute inset-0 opacity-20 pointer-events-none" 
                  style={{
@@ -203,14 +200,19 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                  }}
             />
 
-            {/* Vùng chạm xử lý logic */}
+            {/* Vùng chứa lưới: Dùng aspect-ratio để giữ tỉ lệ, nhưng max-h/max-w để KHÔNG TRÀN */}
             <div 
-              className="relative w-full h-full touch-none cursor-crosshair z-10"
+              className="relative touch-none cursor-crosshair z-10"
               style={{ 
+                // Tỉ lệ khung hình lưới
                 aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-                // SỬA Ở ĐÂY: Giới hạn chiều cao 60vh để không bị quá cao khi full màn hình
-                maxHeight: '60vh', 
-                margin: '0 auto'
+                // Quan trọng: Đảm bảo lưới luôn nằm trọn trong vùng chứa, không bao giờ tràn
+                width: '100%',
+                height: '100%',
+                maxHeight: '100%',
+                maxWidth: '100%',
+                // Căn giữa
+                margin: 'auto'
               }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
               onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
@@ -247,7 +249,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                 {/* Cells */}
                 {grid.map((row, r) => 
                   row.map((cell, c) => (
-                    // Giữ p-[1px] để các ô sát nhau
+                    // Giữ p-[1px] để sát nhau, dùng div rỗng nếu isRemoved để giữ chỗ
                     <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[1px] pointer-events-none">
                       <MangoIcon 
                         value={cell.value} 
@@ -279,13 +281,13 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
           <div className="w-4 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
             <div 
               className={`absolute bottom-0 w-full transition-all duration-1000 ease-linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`}
-              style={{ height: `${(timeLeft / GAME_DURATION_SECONDS) * 100}%` }}
+              style={{ height: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} // Clamp max 100%
             />
           </div>
         </div>
 
-        {/* Control Bar */}
-        <div className="flex justify-between items-center px-4 pt-2 text-white">
+        {/* Control Bar - Cố định chiều cao (shrink-0) để không bị lưới đè */}
+        <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
            <button 
              onClick={() => window.location.reload()}
              className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
