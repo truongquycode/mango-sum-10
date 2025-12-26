@@ -247,7 +247,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                 {grid.map((row, r) => 
                   row.map((cell, c) => (
                     // SỬA Ở ĐÂY: p-[1px] để sát lại
-                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[1px] pointer-events-none">
+                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[0px] pointer-events-none">
                       <MangoIcon 
                         value={cell.value} 
                         isSelected={isCellSelected(r, c)}
