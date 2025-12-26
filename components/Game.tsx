@@ -282,8 +282,8 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
             aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
             maxWidth: '100%',
             maxHeight: '100%',
-            width: '100%', 
-            height: 'auto', 
+            width: '50%', 
+            height: '50%', 
           }}
           onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
