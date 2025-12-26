@@ -209,7 +209,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                 // Quan trọng: Đảm bảo lưới luôn nằm trọn trong vùng chứa, không bao giờ tràn
                 width: '100%',
                 height: '100%',
-                maxHeight: '90%',
+                maxHeight: '100%',
                 maxWidth: '90%',
                 // Căn giữa
                 margin: 'auto'
