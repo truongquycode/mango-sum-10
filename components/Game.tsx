@@ -212,7 +212,7 @@ export const Game: React.FC<GameProps> = ({
           <div className="flex-1 relative flex items-center justify-center">
              <div 
               className="relative touch-none cursor-crosshair z-10"
-              style={{ aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, width: '100%', height: '100%', maxHeight: '100%', maxWidth: '90%', margin: 'auto' }}
+              style={{ aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, width: '100%', height: '100%', maxHeight: '90%', maxWidth: '90%', margin: 'auto' }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
               onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
               onMouseUp={handleEnd}
