@@ -17,7 +17,6 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       className={`
         relative w-full h-full flex items-center justify-center 
         transition-transform duration-200 select-none will-change-transform
-        /* Scale 0.85 (hoặc 0.9) là lý tưởng cho khung nhỏ */
         ${isSelected ? 'scale-[1.0] z-10 brightness-110' : 'scale-[0.9]'}
       `}
     >
@@ -57,9 +56,13 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
         />
       </svg>
       
-      {/* Cỡ chữ */}
+      {/* Cỡ chữ Responsive: 
+          - Mobile: 10px 
+          - Tablet: text-base (16px)
+          - Desktop: text-xl (20px) 
+      */}
       <div className="absolute inset-0 flex items-center justify-center pt-2">
-        <span className="text-white font-black text-xl md:text-2xl drop-shadow-md font-mono pointer-events-none select-none">
+        <span className="text-white font-black text-[10px] sm:text-base md:text-xl drop-shadow-md font-mono pointer-events-none select-none">
           {value}
         </span>
       </div>

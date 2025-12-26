@@ -1,4 +1,3 @@
-// components/Game.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DataConnection } from 'peerjs';
 import { GRID_ROWS, GRID_COLS, TARGET_SUM, GAME_DURATION_SECONDS, BASE_SCORE } from '../constants';
@@ -206,13 +205,22 @@ export const Game: React.FC<GameProps> = ({
   if (grid.length === 0) return <div className="flex items-center justify-center h-full text-orange-600 font-bold animate-pulse">Waiting for Host...</div>;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none overflow-hidden">
+    // Update padding: p-1 sm:p-2 (Giảm padding trên mobile)
+    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-1 sm:p-2 select-none touch-none overflow-hidden">
       <div className="flex flex-col gap-2 w-full max-w-4xl h-full max-h-full">
-        <div className="flex-1 min-h-0 relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3 overflow-hidden">
+        {/* Update padding HUD: p-1 sm:p-3 */}
+        <div className="flex-1 min-h-0 relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-1 sm:p-3 flex gap-3 overflow-hidden">
           <div className="flex-1 relative flex items-center justify-center">
              <div 
               className="relative touch-none cursor-crosshair z-10"
-              style={{ aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, width: '100%', height: '100%', maxHeight: '100%', maxWidth: '90%', margin: 'auto' }}
+              style={{ 
+                aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, 
+                width: '100%', 
+                height: '100%', 
+                maxHeight: '100%', 
+                maxWidth: '100%', // Update: Cho phép full width 100% thay vì 90%
+                margin: 'auto' 
+              }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
               onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
               onMouseUp={handleEnd}
@@ -258,8 +266,6 @@ export const Game: React.FC<GameProps> = ({
                  </div>
                )}
             </div>
-
-            {/* Đã xóa Multiplayer Progress Bar (thanh nằm ngang) */}
           </div>
 
           {/* Time Bar */}
@@ -270,7 +276,6 @@ export const Game: React.FC<GameProps> = ({
         
         {/* Footer Controls */}
         <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
-           {/* Chỉ hiện nút Reset khi chơi Solo */}
            {!isMultiplayer ? (
              <button 
                onClick={() => window.location.reload()} 
@@ -280,7 +285,14 @@ export const Game: React.FC<GameProps> = ({
              </button>
            ) : <div/>}
            
-           
+           <div className="flex items-center gap-4 text-sm font-medium">
+             {!isMultiplayer && (
+               <label className="flex items-center gap-2 cursor-pointer">
+                 <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
+                 <span>Light Colors</span>
+               </label>
+             )}
+           </div>
         </div>
       </div>
     </div>
