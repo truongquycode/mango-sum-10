@@ -51,7 +51,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score]);
 
-  // --- Logic Coordinates & Dragging (Giữ nguyên logic cũ) ---
+  // --- Logic Coordinates & Dragging ---
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -185,18 +185,17 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   // --- UI RENDER ---
 
   return (
-    // 1. Nền tổng thể màu xanh lá đậm giống viền máy chơi game
     <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 md:p-6 select-none touch-none">
       
-      {/* 2. Khung máy chính (Rounded Container) */}
+      {/* Khung máy chính */}
       <div className="relative w-full max-w-5xl bg-[#00cf68] flex flex-col gap-2">
         
-        {/* Màn hình hiển thị (Screen Area) */}
+        {/* Màn hình hiển thị */}
         <div className="relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 md:p-5 flex gap-4">
           
-          {/* Lưới game (Grid) */}
+          {/* Lưới game */}
           <div className="flex-1 relative">
-             {/* Background caro (Graph paper effect) */}
+             {/* Background caro */}
             <div className="absolute inset-0 opacity-20 pointer-events-none" 
                  style={{
                    backgroundImage: 'linear-gradient(#00cf68 1px, transparent 1px), linear-gradient(90deg, #00cf68 1px, transparent 1px)',
@@ -244,11 +243,12 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                   />
                 )}
 
-                {/* Cells */}
-               {grid.map((row, r) => 
-  row.map((cell, c) => (
-    // Đổi p-[1px] thành p-1 để tăng khoảng cách giữa các trái
-    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-1 pointer-events-none">
+                {/* Cells - Sửa lại phần này */}
+                {grid.map((row, r) => 
+                  row.map((cell, c) => (
+                    // p-1 để tăng khoảng cách các ô
+                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-1 pointer-events-none">
+                      <MangoIcon 
                         value={cell.value} 
                         isSelected={isCellSelected(r, c)}
                         isRemoved={cell.isRemoved}
@@ -259,12 +259,12 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
               </div>
             </div>
             
-            {/* Điểm số hiển thị nổi bên góc phải màn hình lưới */}
+            {/* Điểm số */}
             <div className="absolute top-0 right-0 p-2 z-20">
                <span className="text-[#00cf68] font-bold text-3xl font-mono drop-shadow-sm">{score}</span>
             </div>
 
-            {/* Sum Indicator (Floating follow mouse/touch ideally, but centered bottom here for simplicity) */}
+            {/* Sum Indicator */}
             <div className={`
               absolute bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full font-bold text-xl shadow-lg border-2 transition-all duration-200 z-30
               ${dragState.isDragging ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
@@ -274,7 +274,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
             </div>
           </div>
 
-          {/* Thanh thời gian dọc (Vertical Time Bar) giống hình mẫu */}
+          {/* Thanh thời gian */}
           <div className="w-4 md:w-6 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
             <div 
               className={`absolute bottom-0 w-full transition-all duration-1000 ease-linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`}
@@ -283,7 +283,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
           </div>
         </div>
 
-        {/* Thanh điều khiển bên dưới (Control Bar) */}
+        {/* Control Bar */}
         <div className="flex justify-between items-center px-4 pt-2 text-white">
            <button 
              onClick={() => window.location.reload()}
@@ -301,13 +301,8 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
                <span>BGM</span>
              </label>
-             {/* Fake slider */}
-             <div className="w-24 h-2 bg-black/20 rounded-full relative">
-                <div className="absolute left-2/3 w-3 h-3 bg-white rounded-full -top-0.5 shadow"></div>
-             </div>
            </div>
         </div>
-
       </div>
     </div>
   );
