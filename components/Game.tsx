@@ -271,7 +271,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
       </div>
 
       {/* Grid Container Area */}
-      <div className="flex-1 p-2 md:p-6 flex items-center justify-center overflow-hidden">
+      <div className="flex-1 p-2 md:p-2 flex items-center justify-center overflow-hidden">
         {/* Outer Wrapper: FIX APPLIED HERE
             - Removed: w-full, max-w-4xl, fixed height 80vh
             - Added: maxWidth: 100%, maxHeight: 100%, width: 100%, margin: auto
