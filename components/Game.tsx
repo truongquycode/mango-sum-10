@@ -14,7 +14,7 @@ interface GameProps {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- THUẬT TOÁN TẠO MAP CÓ LỜI GIẢI (Giữ nguyên từ bước trước) ---
+// --- THUẬT TOÁN TẠO MAP CÓ LỜI GIẢI ---
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -68,6 +68,10 @@ export const Game: React.FC<GameProps> = ({
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [opponentTimeLeft, setOpponentTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // --- MỚI: Thêm state Streak ---
+  const [streak, setStreak] = useState(0);
+
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false, startPos: null, currentPos: null,
   });
@@ -119,10 +123,8 @@ export const Game: React.FC<GameProps> = ({
     const rect = gridRef.current.getBoundingClientRect();
     const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
     if (isOutside && !clampToEdge) return null;
-    
     const cellWidth = rect.width / GRID_COLS;
     const cellHeight = rect.height / GRID_ROWS;
-    
     return { 
       row: Math.max(0, Math.min(Math.floor((clientY - rect.top) / cellHeight), GRID_ROWS - 1)),
       col: Math.max(0, Math.min(Math.floor((clientX - rect.left) / cellWidth), GRID_COLS - 1))
@@ -171,26 +173,36 @@ export const Game: React.FC<GameProps> = ({
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
-      // --- CHỈNH SỬA: TĂNG HÌNH PHẠT KHI SAI ---
-      // Trước đây là -5, giờ tăng lên -10 giây
-      setTimeLeft(prev => Math.max(0, prev - 10));
+      // --- SAI: MẤT CHUỖI & PHẠT THỜI GIAN ---
+      setTimeLeft(prev => Math.max(0, prev - 10)); // Phạt 10s
+      setStreak(0); // Reset chuỗi về 0
     }
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
 
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
-    const points = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
+    
+    // --- ĐÚNG: TĂNG CHUỖI & CỘNG ĐIỂM THƯỞNG ---
+    const newStreak = streak + 1;
+    setStreak(newStreak);
+
+    // Tính điểm: Điểm cơ bản + (Điểm chuỗi * 10)
+    // Ví dụ: Chuỗi 1 = +10 bonus, Chuỗi 2 = +20 bonus...
+    const basePoints = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
+    const streakBonus = newStreak * 10;
+    const points = basePoints + streakBonus;
+
     const newScore = score + points; 
     setScore(newScore);
     
-    // --- CHỈNH SỬA: GIẢM THỜI GIAN CỘNG THÊM ---
-    // Trước đây là +3, giờ giảm xuống còn +1 giây
+    // Cộng thời gian
     setTimeLeft(prev => prev + 1);
 
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
     cellsToRemove.forEach(pos => { newGrid[pos.row][pos.col].isRemoved = true; });
     setGrid(newGrid);
+    
     if (isMultiplayer && connection) connection.send({ type: 'GRID_UPDATE', payload: { grid: newGrid, score: newScore } } as MultiPlayerMessage);
     setTimeout(() => setIsProcessing(false), 150);
   };
@@ -222,7 +234,15 @@ export const Game: React.FC<GameProps> = ({
            {/* Score Info */}
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
              <div className="flex flex-col">
-               <span className="text-xs font-bold text-[#00cf68] uppercase">You</span>
+               <span className="text-xs font-bold text-[#00cf68] uppercase flex items-center gap-2">
+                 You
+                 {/* HIỂN THỊ CHUỖI (STREAK) */}
+                 {streak > 1 && (
+                   <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce">
+                     🔥 {streak}
+                   </span>
+                 )}
+               </span>
                <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
              </div>
 
@@ -270,7 +290,6 @@ export const Game: React.FC<GameProps> = ({
               gap: '2px' 
             }}
           >
-            {/* Vùng chọn (Selection Box) */}
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
               <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-blue-500 bg-blue-500/10'}`}
                 style={{
@@ -282,7 +301,6 @@ export const Game: React.FC<GameProps> = ({
               />
             )}
             
-            {/* Các ô Mango */}
             {grid.map((row, r) => row.map((cell, c) => (
                 <div key={`${r}-${c}-${cell.id}`} className="w-full h-full relative">
                   <MangoIcon value={cell.value} isSelected={isCellSelected(r, c)} isRemoved={cell.isRemoved} />
@@ -292,7 +310,7 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* Footer (Nút Reset) */}
+      {/* Footer */}
       <div className="shrink-0 h-14 flex items-center justify-center pb-2">
          {!isMultiplayer && (
            <button 
