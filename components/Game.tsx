@@ -217,8 +217,8 @@ export const Game: React.FC<GameProps> = ({
                 aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, 
                 width: '100%', 
                 height: '100%', 
-                maxHeight: '100%', 
-                maxWidth: '90%', // Update: Cho phép full width 100% thay vì 90%
+                maxHeight: '75%', 
+                maxWidth: '75%', // Update: Cho phép full width 100% thay vì 90%
                 margin: 'auto' 
               }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
