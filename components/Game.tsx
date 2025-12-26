@@ -107,17 +107,11 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   }, [dragState]);
 
   // Handle Input Start (Mouse Down / Touch Start)
-  // We allow "starting" even on the border by using clampToEdge=true slightly leniently, 
-  // or strictly inside. Let's use strict inside for start to avoid accidental swipes from UI,
-  // BUT users often hit the border pixel.
   const handleStart = (clientX: number, clientY: number) => {
     if (isProcessing) return; 
     
     // We allow clicking slightly on the border by clamping, so it feels responsive
     const pos = getCellFromCoords(clientX, clientY, true); 
-    
-    // However, verify we are reasonably close to the grid (e.g. not clicking the score header)
-    // The event listeners are on the container, so we are definitely in the game area.
     
     if (pos) {
       // Don't start dragging on empty cells
@@ -136,7 +130,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     if (!dragState.isDragging) return;
     
     // Always clamp to edge while dragging. 
-    // This allows the user to drag their finger OFF the grid and still select the edge row/col.
     const pos = getCellFromCoords(clientX, clientY, true);
     
     if (pos) {
@@ -279,30 +272,19 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
       {/* Grid Container Area */}
       <div className="flex-1 p-2 md:p-6 flex items-center justify-center overflow-hidden">
-        {/* 
-            Outer Wrapper: Visual Border & Event Listener Target.
-            Events are attached here to capture swipes that start/end on the border or slightly outside cells.
+        {/* Outer Wrapper: FIX APPLIED HERE
+            - Removed: w-full, max-w-4xl, fixed height 80vh
+            - Added: maxWidth: 100%, maxHeight: 100%, width: 100%, margin: auto
         */}
         <div 
-          // 1. Bỏ "w-full" và "max-w-4xl" để khung không bị ép buộc kích thước ngang
-          className="relative bg-orange-100/50 rounded-xl border-4 border-orange-200 shadow-inner touch-none cursor-crosshair"
+          className="relative bg-orange-100/50 rounded-xl border-4 border-orange-200 shadow-inner touch-none cursor-crosshair mx-auto"
           style={{ 
-            // 2. Giữ tỉ lệ khung hình chuẩn
             aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-            
-            // 3. Logic mới: Tự động co giãn tối đa nhưng KHÔNG vượt quá khung cha
             maxWidth: '100%',
             maxHeight: '100%',
-            
-            // Mẹo: Đặt width/height lớn và để max-width/height cắt bớt theo tỉ lệ
             width: '100%', 
             height: 'auto', 
-            
-            // Căn giữa nếu cần (thường flex cha đã lo việc này)
-            marginLeft: 'auto',
-            marginRight: 'auto'
           }}
-          // ... giữ nguyên các dòng sự kiện onMouseDown, onTouchStart phía dưới ...
           onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
           onMouseUp={handleEnd}
@@ -341,7 +323,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
               row.map((cell, c) => (
                 <div 
                   key={`${r}-${c}-${cell.id}`} 
-                  className="w-full h-full p-[2px] md:p-1 pointer-events-none" // pointer-events-none on children ensures events bubble efficiently to container
+                  className="w-full h-full p-[2px] md:p-1 pointer-events-none"
                 >
                   <MangoIcon 
                     value={cell.value} 
