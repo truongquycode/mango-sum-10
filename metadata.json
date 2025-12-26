@@ -1,0 +1,5 @@
+{
+  "name": "Mango Sum 10",
+  "description": "A puzzle game where you select a grid of mangoes that sum up to 10 to clear them and score points.",
+  "requestFramePermissions": []
+}
