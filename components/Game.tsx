@@ -69,7 +69,7 @@ export const Game: React.FC<GameProps> = ({
   const [opponentTimeLeft, setOpponentTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // --- MỚI: Thêm state Streak ---
+  // State Chuỗi (Streak)
   const [streak, setStreak] = useState(0);
 
   const [dragState, setDragState] = useState<DragState>({
@@ -77,6 +77,21 @@ export const Game: React.FC<GameProps> = ({
   });
 
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // --- LOGIC MỚI: TỰ ĐỘNG RESET CHUỖI SAU 5 GIÂY ---
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
+    // Chỉ đếm ngược khi đang có chuỗi
+    if (streak > 0) {
+      timer = setTimeout(() => {
+        setStreak(0); // Mất chuỗi nếu không làm gì trong 5s
+      }, 5000);
+    }
+
+    // Cleanup: Nếu streak thay đổi (tăng lên hoặc về 0), timer cũ sẽ bị hủy
+    return () => clearTimeout(timer);
+  }, [streak]);
 
   // --- MULTIPLAYER SYNC ---
   useEffect(() => {
@@ -173,9 +188,9 @@ export const Game: React.FC<GameProps> = ({
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
-      // --- SAI: MẤT CHUỖI & PHẠT THỜI GIAN ---
-      setTimeLeft(prev => Math.max(0, prev - 10)); // Phạt 10s
-      setStreak(0); // Reset chuỗi về 0
+      // Sai: Phạt 10s và mất chuỗi
+      setTimeLeft(prev => Math.max(0, prev - 10)); 
+      setStreak(0); 
     }
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
@@ -183,12 +198,11 @@ export const Game: React.FC<GameProps> = ({
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
     
-    // --- ĐÚNG: TĂNG CHUỖI & CỘNG ĐIỂM THƯỞNG ---
+    // Tăng chuỗi
     const newStreak = streak + 1;
     setStreak(newStreak);
 
-    // Tính điểm: Điểm cơ bản + (Điểm chuỗi * 10)
-    // Ví dụ: Chuỗi 1 = +10 bonus, Chuỗi 2 = +20 bonus...
+    // Điểm thưởng theo chuỗi
     const basePoints = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
     const streakBonus = newStreak * 10;
     const points = basePoints + streakBonus;
@@ -196,7 +210,7 @@ export const Game: React.FC<GameProps> = ({
     const newScore = score + points; 
     setScore(newScore);
     
-    // Cộng thời gian
+    // Thưởng 1s
     setTimeLeft(prev => prev + 1);
 
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
@@ -223,7 +237,7 @@ export const Game: React.FC<GameProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-[#00cf68] select-none touch-none overflow-hidden">
       
-      {/* HUD (Score & Time) */}
+      {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
         <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
            {/* Time Bar */}
@@ -233,16 +247,29 @@ export const Game: React.FC<GameProps> = ({
 
            {/* Score Info */}
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
-             <div className="flex flex-col">
-               <span className="text-xs font-bold text-[#00cf68] uppercase flex items-center gap-2">
-                 You
-                 {/* HIỂN THỊ CHUỖI (STREAK) */}
-                 {streak > 1 && (
-                   <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce">
-                     🔥 {streak}
-                   </span>
+             <div className="flex flex-col relative">
+               <div className="flex items-center gap-2">
+                 <span className="text-xs font-bold text-[#00cf68] uppercase">You</span>
+                 {/* HIỂN THỊ CHUỖI VỚI THANH THỜI GIAN */}
+                 {streak > 0 && (
+                   <div className="relative group">
+                     <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce inline-block shadow-sm">
+                       🔥 {streak}
+                     </span>
+                     {/* Thanh đếm ngược 5s cho Streak */}
+                     <div className="absolute -bottom-1 left-0 w-full h-[2px] bg-gray-200 rounded-full overflow-hidden">
+                       <div 
+                         key={streak} // Key thay đổi giúp reset animation
+                         className="h-full bg-orange-500" 
+                         style={{ 
+                           width: '100%',
+                           animation: 'streak-countdown 5s linear forwards' 
+                         }} 
+                       />
+                     </div>
+                   </div>
                  )}
-               </span>
+               </div>
                <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
              </div>
 
@@ -326,6 +353,14 @@ export const Game: React.FC<GameProps> = ({
             </div>
          )}
       </div>
+
+      {/* Thêm Keyframe cho animation đếm ngược */}
+      <style>{`
+        @keyframes streak-countdown {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
     </div>
   );
 };
