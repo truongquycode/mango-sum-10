@@ -17,7 +17,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       className={`
         relative w-full h-full flex items-center justify-center 
         transition-transform duration-200 select-none will-change-transform
-        ${isSelected ? 'scale-[1.0] z-10 brightness-110' : 'scale-[0.5]'}
+        ${isSelected ? 'scale-[0.55] z-10 brightness-110' : 'scale-[0.5]'}
       `}
     >
       <svg 
