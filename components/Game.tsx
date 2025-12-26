@@ -218,7 +218,7 @@ export const Game: React.FC<GameProps> = ({
                 width: '100%', 
                 height: '100%', 
                 maxHeight: '100%', 
-                maxWidth: '100%', // Update: Cho phép full width 100% thay vì 90%
+                maxWidth: '90%', // Update: Cho phép full width 100% thay vì 90%
                 margin: 'auto' 
               }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
