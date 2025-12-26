@@ -14,7 +14,14 @@ interface GameProps {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- THUẬT TOÁN TẠO MAP CÓ LỜI GIẢI ---
+// --- CÁC ĐƯỜNG DẪN ÂM THANH (Bạn có thể thay bằng file local trong thư mục public) ---
+const AUDIO_URLS = {
+  BGM: 'https://cdn.pixabay.com/audio/2022/03/24/audio_3070f7d544.mp3', // Nhạc nền vui tươi nhẹ
+  CORRECT: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_274e797e97.mp3', // Tiếng 'Pop' hoặc 'Ding'
+  WRONG: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3', // Tiếng 'Buzz' hoặc sai
+};
+
+// ... (Giữ nguyên phần thuật toán tạo Map shuffleArray, generateSolvableValues, createInitialGrid)
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -40,7 +47,6 @@ const createInitialGrid = (): MangoCell[][] => {
   const totalCells = GRID_ROWS * GRID_COLS;
   const solvableValues = generateSolvableValues(totalCells);
   let valueIndex = 0;
-
   for (let r = 0; r < GRID_ROWS; r++) {
     const row: MangoCell[] = [];
     for (let c = 0; c < GRID_COLS; c++) {
@@ -68,9 +74,15 @@ export const Game: React.FC<GameProps> = ({
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [opponentTimeLeft, setOpponentTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // State Chuỗi (Streak)
   const [streak, setStreak] = useState(0);
+
+  // State cho hiệu ứng SAI (lưu ID của các cell bị sai)
+  const [errorCellIds, setErrorCellIds] = useState<Set<string>>(new Set());
+
+  // Refs cho Audio
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
+  const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
 
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false, startPos: null, currentPos: null,
@@ -78,22 +90,52 @@ export const Game: React.FC<GameProps> = ({
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // --- LOGIC MỚI: TỰ ĐỘNG RESET CHUỖI SAU 5 GIÂY ---
+  // --- INIT AUDIO ---
+  useEffect(() => {
+    // Khởi tạo Audio objects
+    bgmRef.current = new Audio(AUDIO_URLS.BGM);
+    bgmRef.current.loop = true;
+    bgmRef.current.volume = 0.3; // Nhạc nền nhỏ thôi
+
+    sfxCorrectRef.current = new Audio(AUDIO_URLS.CORRECT);
+    sfxCorrectRef.current.volume = 0.6;
+
+    sfxWrongRef.current = new Audio(AUDIO_URLS.WRONG);
+    sfxWrongRef.current.volume = 0.5;
+
+    // Phát nhạc nền (yêu cầu người dùng tương tác trước nếu trình duyệt chặn)
+    const playBGM = () => {
+      bgmRef.current?.play().catch(() => console.log("Cần tương tác để phát nhạc"));
+    };
+    document.addEventListener('click', playBGM, { once: true });
+    playBGM();
+
+    return () => {
+      bgmRef.current?.pause();
+      bgmRef.current = null;
+    };
+  }, []);
+
+  // Hàm helper chơi âm thanh
+  const playSound = (type: 'correct' | 'wrong') => {
+    if (type === 'correct' && sfxCorrectRef.current) {
+      sfxCorrectRef.current.currentTime = 0;
+      sfxCorrectRef.current.play().catch(() => {});
+    } else if (type === 'wrong' && sfxWrongRef.current) {
+      sfxWrongRef.current.currentTime = 0;
+      sfxWrongRef.current.play().catch(() => {});
+    }
+  };
+
+  // ... (Logic Streak Timeout và Multiplayer giữ nguyên)
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    
-    // Chỉ đếm ngược khi đang có chuỗi
     if (streak > 0) {
-      timer = setTimeout(() => {
-        setStreak(0); // Mất chuỗi nếu không làm gì trong 5s
-      }, 5000);
+      timer = setTimeout(() => { setStreak(0); }, 5000);
     }
-
-    // Cleanup: Nếu streak thay đổi (tăng lên hoặc về 0), timer cũ sẽ bị hủy
     return () => clearTimeout(timer);
   }, [streak]);
 
-  // --- MULTIPLAYER SYNC ---
   useEffect(() => {
     if (isMultiplayer && isHost && connection && grid.length > 0) {
       connection.send({ type: 'GRID_UPDATE', payload: { grid, score } } as MultiPlayerMessage);
@@ -133,6 +175,7 @@ export const Game: React.FC<GameProps> = ({
     return () => { if (gridRef.current) gridRef.current.removeEventListener('touchmove', preventDefault); };
   }, []);
 
+  // ... (Logic Dragging giữ nguyên)
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -176,11 +219,14 @@ export const Game: React.FC<GameProps> = ({
     const maxCol = Math.max(dragState.startPos.col, dragState.currentPos.col);
     
     let currentSum = 0; const selectedCells: Position[] = [];
+    const idsToCheck: string[] = [];
+
     for (let r = minRow; r <= maxRow; r++) { 
       for (let c = minCol; c <= maxCol; c++) { 
         if (!grid[r][c].isRemoved) { 
           currentSum += grid[r][c].value; 
           selectedCells.push({ row: r, col: c }); 
+          idsToCheck.push(grid[r][c].id);
         } 
       } 
     }
@@ -188,9 +234,19 @@ export const Game: React.FC<GameProps> = ({
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
-      // Sai: Phạt 10s và mất chuỗi
+      // --- XỬ LÝ KHI SAI (WRONG) ---
+      playSound('wrong'); // Âm thanh sai
       setTimeLeft(prev => Math.max(0, prev - 10)); 
-      setStreak(0); 
+      setStreak(0);
+
+      // Kích hoạt hiệu ứng "Phình bự" (Error)
+      const newErrorSet = new Set(idsToCheck);
+      setErrorCellIds(newErrorSet);
+      
+      // Tắt hiệu ứng sau 400ms
+      setTimeout(() => {
+        setErrorCellIds(new Set());
+      }, 400);
     }
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
@@ -198,19 +254,16 @@ export const Game: React.FC<GameProps> = ({
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
     
-    // Tăng chuỗi
+    // --- XỬ LÝ KHI ĐÚNG (CORRECT) ---
+    playSound('correct'); // Âm thanh đúng
+
     const newStreak = streak + 1;
     setStreak(newStreak);
-
-    // Điểm thưởng theo chuỗi
     const basePoints = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
     const streakBonus = newStreak * 10;
-    const points = basePoints + streakBonus;
-
-    const newScore = score + points; 
-    setScore(newScore);
+    const newScore = score + basePoints + streakBonus;
     
-    // Thưởng 1s
+    setScore(newScore);
     setTimeLeft(prev => prev + 1);
 
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
@@ -221,6 +274,7 @@ export const Game: React.FC<GameProps> = ({
     setTimeout(() => setIsProcessing(false), 150);
   };
 
+  // ... (currentSum, isValidSum giữ nguyên)
   const currentSum = (() => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -240,32 +294,21 @@ export const Game: React.FC<GameProps> = ({
       {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
         <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
-           {/* Time Bar */}
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
              <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
            </div>
 
-           {/* Score Info */}
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
              <div className="flex flex-col relative">
                <div className="flex items-center gap-2">
                  <span className="text-xs font-bold text-[#00cf68] uppercase">You</span>
-                 {/* HIỂN THỊ CHUỖI VỚI THANH THỜI GIAN */}
                  {streak > 0 && (
                    <div className="relative group">
                      <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce inline-block shadow-sm">
                        🔥 {streak}
                      </span>
-                     {/* Thanh đếm ngược 5s cho Streak */}
                      <div className="absolute -bottom-1 left-0 w-full h-[2px] bg-gray-200 rounded-full overflow-hidden">
-                       <div 
-                         key={streak} // Key thay đổi giúp reset animation
-                         className="h-full bg-orange-500" 
-                         style={{ 
-                           width: '100%',
-                           animation: 'streak-countdown 5s linear forwards' 
-                         }} 
-                       />
+                       <div key={streak} className="h-full bg-orange-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
                      </div>
                    </div>
                  )}
@@ -273,7 +316,6 @@ export const Game: React.FC<GameProps> = ({
                <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
              </div>
 
-             {/* Đối thủ */}
              {isMultiplayer && (
                <div className="flex flex-col items-end border-l pl-4 border-gray-200">
                   <span className="text-xs font-bold text-gray-500 uppercase">Enemy</span>
@@ -291,13 +333,7 @@ export const Game: React.FC<GameProps> = ({
       <div className="flex-1 flex items-center justify-center p-2 w-full overflow-hidden relative">
         <div 
           className="relative z-10"
-          style={{ 
-            aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-            height: '100%',
-            width: '100%',
-            maxHeight: '100%', 
-            maxWidth: '100%',
-          }}
+          style={{ aspectRatio: `${GRID_COLS}/${GRID_ROWS}`, height: '100%', width: '100%', maxHeight: '100%', maxWidth: '100%' }}
           onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
           onMouseUp={handleEnd}
@@ -306,17 +342,7 @@ export const Game: React.FC<GameProps> = ({
           onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchEnd={handleEnd}
         >
-          {/* Lưới Grid */}
-          <div 
-            ref={gridRef} 
-            className="w-full h-full"
-            style={{ 
-              display: 'grid', 
-              gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, 
-              gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-              gap: '2px' 
-            }}
-          >
+          <div ref={gridRef} className="w-full h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: '2px' }}>
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
               <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-blue-500 bg-blue-500/10'}`}
                 style={{
@@ -330,7 +356,13 @@ export const Game: React.FC<GameProps> = ({
             
             {grid.map((row, r) => row.map((cell, c) => (
                 <div key={`${r}-${c}-${cell.id}`} className="w-full h-full relative">
-                  <MangoIcon value={cell.value} isSelected={isCellSelected(r, c)} isRemoved={cell.isRemoved} />
+                  <MangoIcon 
+                    value={cell.value} 
+                    isSelected={isCellSelected(r, c)} 
+                    isRemoved={cell.isRemoved}
+                    // Truyền prop isError dựa trên ID
+                    isError={errorCellIds.has(cell.id)} 
+                  />
                 </div>
             )))}
           </div>
@@ -340,27 +372,10 @@ export const Game: React.FC<GameProps> = ({
       {/* Footer */}
       <div className="shrink-0 h-14 flex items-center justify-center pb-2">
          {!isMultiplayer && (
-           <button 
-             onClick={() => window.location.reload()} 
-             className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider backdrop-blur-sm transition-all active:scale-95"
-           >
-             Reset Game
-           </button>
-         )}
-         {!isMultiplayer && (
-            <div className="absolute right-4 text-white text-xs opacity-60 font-medium">
-               Light Mode: Auto
-            </div>
+           <button onClick={() => window.location.reload()} className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider backdrop-blur-sm transition-all active:scale-95">Reset Game</button>
          )}
       </div>
-
-      {/* Thêm Keyframe cho animation đếm ngược */}
-      <style>{`
-        @keyframes streak-countdown {
-          from { width: 100%; }
-          to { width: 0%; }
-        }
-      `}</style>
+      <style>{`@keyframes streak-countdown { from { width: 100%; } to { width: 0%; } }`}</style>
     </div>
   );
 };
