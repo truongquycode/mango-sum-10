@@ -1,3 +1,4 @@
+// types.ts
 export interface Position {
   row: number;
   col: number;
@@ -24,6 +25,7 @@ export interface DragState {
 }
 
 export interface MultiPlayerMessage {
-  type: 'START' | 'GRID_UPDATE' | 'GAME_OVER' | 'RESTART';
+  // Thêm TIME_UPDATE và READY
+  type: 'START' | 'GRID_UPDATE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY';
   payload?: any;
 }

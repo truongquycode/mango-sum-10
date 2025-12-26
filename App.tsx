@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect } from 'react';
 import { GameState, MultiPlayerMessage } from './types';
 import { StartScreen } from './components/StartScreen';
@@ -19,7 +20,10 @@ export default function App() {
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Xác định ai là chủ phòng để tạo map gốc
+  // Trạng thái cho việc Restart đồng bộ
+  const [isMeReady, setIsMeReady] = useState(false);
+  const [isOpponentReady, setIsOpponentReady] = useState(false);
+  
   const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
@@ -29,7 +33,61 @@ export default function App() {
     }
   }, []);
 
+  // Logic kiểm tra cả 2 đã sẵn sàng chưa để start game lại
+  useEffect(() => {
+    if (isMultiplayer && gameState === GameState.GAME_OVER) {
+      if (isMeReady && isOpponentReady) {
+        startMultiplayerMatch();
+      }
+    }
+  }, [isMeReady, isOpponentReady, isMultiplayer, gameState]);
+
+  const startMultiplayerMatch = () => {
+    setGameState(GameState.PLAYING);
+    setOpponentScore(0);
+    setFinalScore(0);
+    // Reset trạng thái ready
+    setIsMeReady(false);
+    setIsOpponentReady(false);
+  };
+
   // --- PeerJS Logic ---
+  
+  // Định nghĩa handleConnection trước để có thể gọi trong initializePeer
+  const handleConnection = (connection: DataConnection) => {
+    setConn(connection);
+    
+    connection.on('open', () => {
+      console.log("Connected to", connection.peer);
+      setIsConnecting(false);
+      setGameState(GameState.PLAYING);
+    });
+
+    connection.on('data', (data: any) => {
+      const msg = data as MultiPlayerMessage;
+      
+      if (msg.type === 'START') {
+        setGameState(GameState.PLAYING);
+      } else if (msg.type === 'GAME_OVER') {
+        setOpponentScore(msg.payload.score);
+      } else if (msg.type === 'RESTART') {
+         // Logic cũ, giữ lại để tương thích nếu cần
+      } else if (msg.type === 'READY') {
+        // Đối thủ đã bấm Play Again
+        setIsOpponentReady(true);
+      }
+    });
+
+    connection.on('close', () => {
+      alert("Opponent disconnected");
+      setGameState(GameState.MENU);
+      setConn(null);
+      setIsHost(false);
+      setIsMeReady(false);
+      setIsOpponentReady(false);
+    });
+  };
+
   const initializePeer = () => {
     if (peer) return; 
 
@@ -42,7 +100,7 @@ export default function App() {
 
     newPeer.on('connection', (connection) => {
       console.log('Incoming connection from', connection.peer);
-      setIsHost(true); // Ai nhận kết nối thì là Host
+      setIsHost(true);
       handleConnection(connection);
     });
 
@@ -55,45 +113,10 @@ export default function App() {
     setPeer(newPeer);
   };
 
-  const handleConnection = (connection: DataConnection) => {
-    setConn(connection);
-    
-    connection.on('open', () => {
-      console.log("Connected to", connection.peer);
-      setIsConnecting(false);
-      setGameState(GameState.PLAYING);
-      
-      // Host không gửi START ở đây nữa, mà để Game component tự init và gửi Grid
-    });
-
-    connection.on('data', (data: any) => {
-      const msg = data as MultiPlayerMessage;
-      // App chỉ xử lý chuyển trạng thái game, còn Grid update để Game component lo
-      if (msg.type === 'START') {
-        setGameState(GameState.PLAYING);
-        setOpponentScore(0);
-        setFinalScore(0);
-      } else if (msg.type === 'GAME_OVER') {
-        setOpponentScore(msg.payload.score);
-      } else if (msg.type === 'RESTART') {
-        setGameState(GameState.PLAYING);
-        setOpponentScore(0);
-        setFinalScore(0);
-      }
-    });
-
-    connection.on('close', () => {
-      alert("Opponent disconnected");
-      setGameState(GameState.MENU);
-      setConn(null);
-      setIsHost(false);
-    });
-  };
-
   const connectToPeer = (remotePeerId: string) => {
     if (!peer) return;
     setIsConnecting(true);
-    setIsHost(false); // Người đi join là Client
+    setIsHost(false);
     const connection = peer.connect(remotePeerId);
     handleConnection(connection);
   };
@@ -102,7 +125,7 @@ export default function App() {
 
   const handleStartSolo = () => {
     setIsMultiplayer(false);
-    setIsHost(true); // Solo thì coi như mình là host
+    setIsHost(true);
     setGameState(GameState.PLAYING);
     if (conn) conn.close();
   };
@@ -134,14 +157,19 @@ export default function App() {
 
   const handleRestart = () => {
     if (isMultiplayer && conn) {
-      conn.send({ type: 'RESTART' } as MultiPlayerMessage);
-      setOpponentScore(0);
+      // Thay vì start ngay, ta gửi tín hiệu READY
+      setIsMeReady(true);
+      conn.send({ type: 'READY' } as MultiPlayerMessage);
+    } else {
+      // Chế độ Solo thì start luôn
+      setGameState(GameState.PLAYING);
     }
-    setGameState(GameState.PLAYING);
   };
 
   const handleGoHome = () => {
     setGameState(GameState.MENU);
+    setIsMeReady(false);
+    setIsOpponentReady(false);
     if (conn) {
       conn.close();
       setConn(null);
@@ -149,7 +177,6 @@ export default function App() {
   };
 
   return (
-    // Sử dụng dvh để fix lỗi layout trên mobile safari/chrome
     <div className="h-[100dvh] w-full relative overflow-hidden bg-amber-50">
       {gameState === GameState.MENU && (
         <StartScreen 
@@ -183,9 +210,12 @@ export default function App() {
            <div className="absolute inset-0 opacity-10 pointer-events-none bg-repeat bg-[url('https://www.transparenttextures.com/patterns/food.png')]"></div>
            <GameOverScreen 
              score={finalScore} 
+             opponentScore={opponentScore}
              highScore={highScore} 
              onRestart={handleRestart} 
              onHome={handleGoHome}
+             isMultiplayer={isMultiplayer}
+             isWaitingForOpponent={isMultiplayer && isMeReady && !isOpponentReady}
            />
         </>
       )}
