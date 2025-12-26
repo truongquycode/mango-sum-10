@@ -53,7 +53,6 @@ export const Game: React.FC<GameProps> = ({
 
   // --- MULTIPLAYER SYNC ---
   useEffect(() => {
-    // Sửa lỗi VXgrid -> grid
     if (isMultiplayer && isHost && connection && grid.length > 0) {
       connection.send({ 
         type: 'GRID_UPDATE', 
@@ -72,7 +71,6 @@ export const Game: React.FC<GameProps> = ({
         if (msg.payload.grid) setGrid(msg.payload.grid);
         if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
       } else if (msg.type === 'TIME_UPDATE') {
-        // Cập nhật thời gian đối thủ
         setOpponentTimeLeft(msg.payload);
       }
     };
@@ -90,8 +88,6 @@ export const Game: React.FC<GameProps> = ({
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         const newTime = prev - 1;
-        
-        // Gửi thời gian cho đối thủ mỗi giây
         if (isMultiplayer && connection) {
           connection.send({ type: 'TIME_UPDATE', payload: newTime } as MultiPlayerMessage);
         }
@@ -206,8 +202,6 @@ export const Game: React.FC<GameProps> = ({
   })();
 
   const isValidSum = currentSum === TARGET_SUM;
-  const isWinning = score > opponentScore;
-  const isTied = score === opponentScore;
 
   if (grid.length === 0) return <div className="flex items-center justify-center h-full text-orange-600 font-bold animate-pulse">Waiting for Host...</div>;
 
@@ -265,12 +259,7 @@ export const Game: React.FC<GameProps> = ({
                )}
             </div>
 
-            {/* Multiplayer Progress Bar */}
-            {isMultiplayer && (
-               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gray-200 rounded-full overflow-hidden z-20 border border-white/50 pointer-events-none">
-                  <div className={`h-full transition-all duration-500 ${isWinning ? 'bg-green-500' : isTied ? 'bg-yellow-400' : 'bg-red-500'}`} style={{ width: `${(score / (score + opponentScore + 1)) * 100}%` }} />
-               </div>
-            )}
+            {/* Đã xóa Multiplayer Progress Bar (thanh nằm ngang) */}
           </div>
 
           {/* Time Bar */}
@@ -279,12 +268,31 @@ export const Game: React.FC<GameProps> = ({
           </div>
         </div>
         
+        {/* Footer Controls */}
         <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
-           <button onClick={() => window.location.reload()} className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider">Reset</button>
+           {/* Chỉ hiện nút Reset khi chơi Solo */}
+           {!isMultiplayer ? (
+             <button 
+               onClick={() => window.location.reload()} 
+               className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
+             >
+               Reset
+             </button>
+           ) : <div/>}
+           
            <div className="flex items-center gap-4 text-sm font-medium">
+             {/* Chỉ hiện Light Colors khi chơi Solo */}
+             {!isMultiplayer && (
+               <label className="flex items-center gap-2 cursor-pointer">
+                 <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
+                 <span>Light Colors</span>
+               </label>
+             )}
+             
+             {/* Giữ lại BGM nếu cần, hoặc có thể ẩn nốt nếu muốn */}
              <label className="flex items-center gap-2 cursor-pointer">
-               <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
-               <span>Light Colors</span>
+               <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
+               <span>BGM</span>
              </label>
            </div>
         </div>
