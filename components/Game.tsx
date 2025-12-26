@@ -185,13 +185,13 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   // --- UI RENDER ---
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 md:p-6 select-none touch-none">
+    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none">
       
-      {/* Khung máy chính */}
-      <div className="relative w-full max-w-5xl bg-[#00cf68] flex flex-col gap-2">
+      {/* SỬA Ở ĐÂY: max-w-3xl (768px) thay vì max-w-5xl để khung nhỏ lại như chế độ 75% */}
+      <div className="relative w-full max-w-3xl bg-[#00cf68] flex flex-col gap-2">
         
         {/* Màn hình hiển thị */}
-        <div className="relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 md:p-5 flex gap-4">
+        <div className="relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3">
           
           {/* Lưới game */}
           <div className="flex-1 relative">
@@ -208,7 +208,8 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
               className="relative w-full h-full touch-none cursor-crosshair z-10"
               style={{ 
                 aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-                maxHeight: '80vh',
+                // SỬA Ở ĐÂY: Giới hạn chiều cao 60vh để không bị quá cao khi full màn hình
+                maxHeight: '60vh', 
                 margin: '0 auto'
               }}
               onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
@@ -246,8 +247,8 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                 {/* Cells */}
                 {grid.map((row, r) => 
                   row.map((cell, c) => (
-                    // SỬA Ở ĐÂY: p-[1px] để sát lại
-                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[0px] pointer-events-none">
+                    // Giữ p-[1px] để các ô sát nhau
+                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[1px] pointer-events-none">
                       <MangoIcon 
                         value={cell.value} 
                         isSelected={isCellSelected(r, c)}
@@ -275,7 +276,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
           </div>
 
           {/* Thanh thời gian */}
-          <div className="w-4 md:w-6 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
+          <div className="w-4 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
             <div 
               className={`absolute bottom-0 w-full transition-all duration-1000 ease-linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`}
               style={{ height: `${(timeLeft / GAME_DURATION_SECONDS) * 100}%` }}

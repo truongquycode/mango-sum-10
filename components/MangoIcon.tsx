@@ -17,8 +17,8 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       className={`
         relative w-full h-full flex items-center justify-center 
         transition-transform duration-200 select-none will-change-transform
-        /* SỬA Ở ĐÂY: Tăng scale lên 0.85 để lấp khoảng trống */
-        ${isSelected ? 'scale-[1.0] z-10 brightness-110' : 'scale-[0.5]'}
+        /* Scale 0.85 (hoặc 0.9) là lý tưởng cho khung nhỏ */
+        ${isSelected ? 'scale-[1.0] z-10 brightness-110' : 'scale-[0.9]'}
       `}
     >
       <svg 
