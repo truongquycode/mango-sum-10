@@ -17,12 +17,13 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       className={`
         relative w-full h-full flex items-center justify-center 
         transition-transform duration-200 select-none will-change-transform
-        ${isSelected ? 'scale-110 z-10 brightness-110' : 'scale-95'}
+        /* SỬA Ở ĐÂY: Đổi scale-95 thành scale-75 để trái cây nhỏ lại */
+        ${isSelected ? 'scale-100 z-10 brightness-110' : 'scale-75'}
       `}
     >
       <svg 
         viewBox="0 0 100 100" 
-        className="w-full h-full overflow-visible drop-shadow-md"
+        className="w-full h-full overflow-visible drop-shadow-sm"
       >
         <defs>
           <linearGradient id={`grad-${value}`} x1="30%" y1="20%" x2="70%" y2="80%">
@@ -32,7 +33,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
           </linearGradient>
         </defs>
 
-        {/* Mango Body - Simplified Shape like the Apple */}
+        {/* Body */}
         <path 
           d="M 50 15 
              C 85 15, 95 40, 90 70 
@@ -44,7 +45,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
           strokeWidth="1"
         />
 
-        {/* Highlight glare */}
+        {/* Highlight */}
         <ellipse cx="35" cy="35" rx="10" ry="5" fill="white" opacity="0.3" transform="rotate(-45 35 35)" />
 
         {/* Leaf */}
@@ -56,9 +57,9 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
         />
       </svg>
       
-      {/* Number Centered - Big & White like the reference image */}
+      {/* SỬA Ở ĐÂY: Giảm kích thước chữ một chút (text-lg) cho vừa với trái cây nhỏ */}
       <div className="absolute inset-0 flex items-center justify-center pt-2">
-        <span className="text-white font-black text-xl md:text-2xl drop-shadow-md font-mono pointer-events-none select-none">
+        <span className="text-white font-black text-lg md:text-xl drop-shadow-md font-mono pointer-events-none select-none">
           {value}
         </span>
       </div>

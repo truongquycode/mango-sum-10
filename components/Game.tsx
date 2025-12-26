@@ -245,10 +245,10 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                 )}
 
                 {/* Cells */}
-                {grid.map((row, r) => 
-                  row.map((cell, c) => (
-                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[1px] pointer-events-none">
-                      <MangoIcon 
+               {grid.map((row, r) => 
+  row.map((cell, c) => (
+    // Đổi p-[1px] thành p-1 để tăng khoảng cách giữa các trái
+    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-1 pointer-events-none">
                         value={cell.value} 
                         isSelected={isCellSelected(r, c)}
                         isRemoved={cell.isRemoved}
