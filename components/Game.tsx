@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DataConnection } from 'peerjs';
 import { GRID_ROWS, GRID_COLS, TARGET_SUM, GAME_DURATION_SECONDS, BASE_SCORE } from '../constants';
-import { Position, MangoCell, DragState, MultiPlayerMessage } from '../types';
+import { Position, MangoCell, DragState } from '../types';
 import { MangoIcon } from './MangoIcon';
 
 interface GameProps {
   onGameOver: (score: number) => void;
+  // Thêm các props cho multiplayer
   isMultiplayer?: boolean;
-  isHost?: boolean;
-  connection?: DataConnection | null;
+  opponentScore?: number;
+  onScoreUpdate?: (newScore: number) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -32,12 +32,11 @@ const createInitialGrid = (): MangoCell[][] => {
 export const Game: React.FC<GameProps> = ({ 
   onGameOver, 
   isMultiplayer = false, 
-  isHost = true, 
-  connection 
+  opponentScore = 0, 
+  onScoreUpdate 
 }) => {
-  const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
+  const [grid, setGrid] = useState<MangoCell[][]>(createInitialGrid());
   const [score, setScore] = useState(0);
-  const [opponentScore, setOpponentScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -48,41 +47,6 @@ export const Game: React.FC<GameProps> = ({
   });
 
   const gridRef = useRef<HTMLDivElement>(null);
-
-  // --- LOGIC ĐỒNG BỘ MULTIPLAYER ---
-  
-  useEffect(() => {
-    if (isMultiplayer && isHost && connection && grid.length > 0) {
-      connection.send({ 
-        type: 'GRID_UPDATE', 
-        payload: { grid, score, opponentScore: score }
-      } as MultiPlayerMessage);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isMultiplayer || !connection) return;
-
-    const handleData = (data: any) => {
-      const msg = data as MultiPlayerMessage;
-      
-      if (msg.type === 'GRID_UPDATE') {
-        if (msg.payload.grid) {
-          setGrid(msg.payload.grid);
-        }
-        if (msg.payload.score !== undefined) {
-          setOpponentScore(msg.payload.score);
-        }
-      } 
-    };
-
-    connection.on('data', handleData);
-    return () => {
-      connection.off('data', handleData);
-    };
-  }, [isMultiplayer, connection]);
-
-  // ---
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -95,32 +59,26 @@ export const Game: React.FC<GameProps> = ({
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score]);
 
-  // Prevent default touch actions on mobile
-  useEffect(() => {
-    const preventDefault = (e: TouchEvent) => e.preventDefault();
-    if (gridRef.current) {
-        gridRef.current.addEventListener('touchmove', preventDefault, { passive: false });
-    }
-    return () => {
-        if (gridRef.current) {
-            gridRef.current.removeEventListener('touchmove', preventDefault);
-        }
-    };
-  }, []);
-
+  // (Giữ nguyên các hàm getCellFromCoords, isCellSelected, handleStart, handleMove...)
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
     const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
+
     if (isOutside && !clampToEdge) return null;
+
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
+    
     const cellWidth = rect.width / GRID_COLS;
     const cellHeight = rect.height / GRID_ROWS;
+
     let col = Math.floor(relX / cellWidth);
     let row = Math.floor(relY / cellHeight);
+
     row = Math.max(0, Math.min(row, GRID_ROWS - 1));
     col = Math.max(0, Math.min(col, GRID_COLS - 1));
+
     return { row, col };
   }, []);
 
@@ -190,8 +148,7 @@ export const Game: React.FC<GameProps> = ({
 
     // Gửi điểm số mới cho đối thủ
     if (isMultiplayer && onScoreUpdate) {
-      // (Không cần gửi riêng ở đây nữa vì đã gộp vào GRID_UPDATE bên dưới, 
-      // nhưng giữ lại callback này nếu App.tsx cần dùng cho mục đích khác)
+      onScoreUpdate(newScore);
     }
 
     setGrid(prevGrid => {
@@ -201,23 +158,6 @@ export const Game: React.FC<GameProps> = ({
       });
       return newGrid;
     });
-
-    // GỬI GRID MỚI CHO ĐỐI THỦ
-    if (isMultiplayer && connection) {
-      // Tính toán grid mới để gửi đi (tránh delay state)
-      const newGridForSend = grid.map(row => row.map(cell => ({ ...cell })));
-      cellsToRemove.forEach(pos => {
-        newGridForSend[pos.row][pos.col].isRemoved = true;
-      });
-
-      connection.send({
-        type: 'GRID_UPDATE',
-        payload: {
-          grid: newGridForSend,
-          score: newScore
-        }
-      } as MultiPlayerMessage);
-    }
 
     setTimeout(() => {
       setIsProcessing(false);
@@ -245,16 +185,12 @@ export const Game: React.FC<GameProps> = ({
   const isWinning = score > opponentScore;
   const isTied = score === opponentScore;
 
-  if (grid.length === 0) {
-    return <div className="flex items-center justify-center h-full text-orange-600 font-bold text-2xl animate-pulse">Waiting for Host...</div>;
-  }
-
   return (
     <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none overflow-hidden">
       
       <div className="flex flex-col gap-2 w-full max-w-4xl h-full max-h-full">
         
-        {/* HUD */}
+        {/* HUD Cập Nhật */}
         <div className="flex-1 min-h-0 relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3 overflow-hidden">
           
           <div className="flex-1 relative flex items-center justify-center">
@@ -266,7 +202,7 @@ export const Game: React.FC<GameProps> = ({
                  }}
             />
 
-            {/* Grid Container */}
+            {/* Grid */}
             <div 
               className="relative touch-none cursor-crosshair z-10"
               style={{ 
@@ -324,8 +260,8 @@ export const Game: React.FC<GameProps> = ({
               </div>
             </div>
             
-            {/* Score Overlay */}
-            <div className="absolute top-0 right-0 p-2 z-20 flex flex-col items-end pointer-events-none">
+            {/* Điểm số */}
+            <div className="absolute top-0 right-0 p-2 z-20 flex flex-col items-end">
                <span className="text-xs font-bold text-[#00cf68]/80">YOU</span>
                <span className="text-[#00cf68] font-bold text-3xl font-mono drop-shadow-sm leading-none">{score}</span>
                
@@ -337,9 +273,9 @@ export const Game: React.FC<GameProps> = ({
                )}
             </div>
 
-            {/* Multiplayer Progress Bar */}
+            {/* Thanh tiến độ so sánh điểm (Chỉ hiện khi Multiplayer) */}
             {isMultiplayer && (
-               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gray-200 rounded-full overflow-hidden z-20 border border-white/50 pointer-events-none">
+               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gray-200 rounded-full overflow-hidden z-20 border border-white/50">
                   <div 
                     className={`h-full transition-all duration-500 ${isWinning ? 'bg-green-500' : isTied ? 'bg-yellow-400' : 'bg-red-500'}`}
                     style={{ width: `${(score / (score + opponentScore + 1)) * 100}%` }}
@@ -348,7 +284,7 @@ export const Game: React.FC<GameProps> = ({
             )}
           </div>
 
-          {/* Time Bar */}
+          {/* Thanh thời gian */}
           <div className="w-4 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
             <div 
               className={`absolute bottom-0 w-full transition-all duration-1000 ease-linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`}
@@ -357,28 +293,26 @@ export const Game: React.FC<GameProps> = ({
           </div>
         </div>
 
-        {/* Footer Controls - CHỈ HIỆN KHI KHÔNG PHẢI MULTIPLAYER */}
-        {!isMultiplayer && (
-          <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
-             <button 
-               onClick={() => window.location.reload()}
-               className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
-             >
-               Reset
-             </button>
-             
-             <div className="flex items-center gap-4 text-sm font-medium">
-               <label className="flex items-center gap-2 cursor-pointer">
-                 <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
-                 <span>Light Colors</span>
-               </label>
-               <label className="flex items-center gap-2 cursor-pointer">
-                 <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
-                 <span>BGM</span>
-               </label>
-             </div>
-          </div>
-        )}
+        {/* Control Bar */}
+        <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
+           <button 
+             onClick={() => window.location.reload()}
+             className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
+           >
+             Reset
+           </button>
+           
+           <div className="flex items-center gap-4 text-sm font-medium">
+             <label className="flex items-center gap-2 cursor-pointer">
+               <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
+               <span>Light Colors</span>
+             </label>
+             <label className="flex items-center gap-2 cursor-pointer">
+               <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
+               <span>BGM</span>
+             </label>
+           </div>
+        </div>
       </div>
     </div>
   );
