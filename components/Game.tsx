@@ -16,7 +16,7 @@ const createInitialGrid = (): MangoCell[][] => {
     for (let c = 0; c < GRID_COLS; c++) {
       row.push({
         id: generateId(),
-        value: Math.floor(Math.random() * 9) + 1, // 1-9
+        value: Math.floor(Math.random() * 9) + 1,
         isRemoved: false,
       });
     }
@@ -31,7 +31,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Selection State
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
     startPos: null,
@@ -40,7 +39,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Timer Logic
+  // Timer
   useEffect(() => {
     if (timeLeft <= 0) {
       onGameOver(score);
@@ -52,99 +51,57 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score]);
 
-  /**
-   * Calculates the grid cell from screen coordinates.
-   * @param clientX Mouse/Touch X
-   * @param clientY Mouse/Touch Y
-   * @param clampToEdge If true, coordinates outside the grid map to the nearest edge cell (for dragging).
-   */
+  // --- Logic Coordinates & Dragging (Giữ nguyên logic cũ) ---
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
-    
-    // Get grid bounding box (Inner container, no borders)
     const rect = gridRef.current.getBoundingClientRect();
-    
-    // Basic Bounds Check
-    const isOutside = 
-      clientX < rect.left || 
-      clientX > rect.right || 
-      clientY < rect.top || 
-      clientY > rect.bottom;
+    const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
 
-    if (isOutside && !clampToEdge) {
-      return null;
-    }
+    if (isOutside && !clampToEdge) return null;
 
-    // Calculate relative position
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
-
-    // Use explicit dimensions from rect to ensure accuracy
     const cellWidth = rect.width / GRID_COLS;
     const cellHeight = rect.height / GRID_ROWS;
 
     let col = Math.floor(relX / cellWidth);
     let row = Math.floor(relY / cellHeight);
 
-    // If clamping, force to valid range. 
-    // If not clamping (start), we still clamp to handle minor floating point edge cases at exact boundaries.
     row = Math.max(0, Math.min(row, GRID_ROWS - 1));
     col = Math.max(0, Math.min(col, GRID_COLS - 1));
 
     return { row, col };
   }, []);
 
-  // Check if a cell is within the current selection rectangle
   const isCellSelected = useCallback((r: number, c: number) => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return false;
-    
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
     const maxRow = Math.max(dragState.startPos.row, dragState.currentPos.row);
     const minCol = Math.min(dragState.startPos.col, dragState.currentPos.col);
     const maxCol = Math.max(dragState.startPos.col, dragState.currentPos.col);
-
     return r >= minRow && r <= maxRow && c >= minCol && c <= maxCol;
   }, [dragState]);
 
-  // Handle Input Start (Mouse Down / Touch Start)
   const handleStart = (clientX: number, clientY: number) => {
     if (isProcessing) return; 
-    
-    // We allow clicking slightly on the border by clamping, so it feels responsive
     const pos = getCellFromCoords(clientX, clientY, true); 
-    
     if (pos) {
-      // Don't start dragging on empty cells
       if (grid[pos.row][pos.col].isRemoved) return;
-
-      setDragState({
-        isDragging: true,
-        startPos: pos,
-        currentPos: pos,
-      });
+      setDragState({ isDragging: true, startPos: pos, currentPos: pos });
     }
   };
 
-  // Handle Input Move
   const handleMove = (clientX: number, clientY: number) => {
     if (!dragState.isDragging) return;
-    
-    // Always clamp to edge while dragging. 
     const pos = getCellFromCoords(clientX, clientY, true);
-    
-    if (pos) {
-      setDragState((prev) => ({ ...prev, currentPos: pos }));
-    }
+    if (pos) setDragState((prev) => ({ ...prev, currentPos: pos }));
   };
 
-  // Handle Input End
   const handleEnd = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) {
       setDragState({ isDragging: false, startPos: null, currentPos: null });
       return;
     }
-
-    // 1. Identify selected cells
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
     const maxRow = Math.max(dragState.startPos.row, dragState.currentPos.row);
     const minCol = Math.min(dragState.startPos.col, dragState.currentPos.col);
@@ -163,23 +120,15 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
       }
     }
 
-    // 2. Check Logic (Sum == 10)
-    if (currentSum === TARGET_SUM) {
-      processMatch(selectedCells);
-    } 
-
-    // Reset Drag
+    if (currentSum === TARGET_SUM) processMatch(selectedCells);
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
 
   const processMatch = (cellsToRemove: Position[]) => {
-    setIsProcessing(true); // Lock input
-
-    // Calculate Score
+    setIsProcessing(true);
     const points = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
     setScore(prev => prev + points);
 
-    // Step 1: Mark as removed immediately
     setGrid(prevGrid => {
       const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
       cellsToRemove.forEach(pos => {
@@ -188,21 +137,17 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
       return newGrid;
     });
 
-    // Step 2: Gravity & Refill Logic
     setTimeout(() => {
       setGrid(prevGrid => {
         const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
-        
         for (let c = 0; c < GRID_COLS; c++) {
           let writeRow = GRID_ROWS - 1;
-          
           for (let r = GRID_ROWS - 1; r >= 0; r--) {
             if (!newGrid[r][c].isRemoved) {
               newGrid[writeRow][c] = newGrid[r][c];
               writeRow--;
             }
           }
-
           while (writeRow >= 0) {
             newGrid[writeRow][c] = {
               id: generateId(),
@@ -218,7 +163,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     }, 350);
   };
 
-  // Calculate current selection sum for UI feedback
   const getCurrentSelectionSum = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -229,9 +173,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     let sum = 0;
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
-        if (!grid[r][c].isRemoved) {
-          sum += grid[r][c].value;
-        }
+        if (!grid[r][c].isRemoved) sum += grid[r][c].value;
       }
     }
     return sum;
@@ -240,106 +182,132 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
   const currentSum = getCurrentSelectionSum();
   const isValidSum = currentSum === TARGET_SUM;
 
+  // --- UI RENDER ---
+
   return (
-    <div className="flex flex-col h-full w-full bg-orange-50 select-none touch-none">
-      {/* HUD */}
-      <div className="flex justify-between items-center p-4 bg-white shadow-md border-b-4 border-orange-200 z-20 shrink-0">
-        <div className="flex flex-col">
-          <span className="text-xs font-bold text-gray-500 uppercase">Score</span>
-          <span className="text-2xl font-black text-orange-600 font-mono">{score}</span>
-        </div>
+    // 1. Nền tổng thể màu xanh lá đậm giống viền máy chơi game
+    <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 md:p-6 select-none touch-none">
+      
+      {/* 2. Khung máy chính (Rounded Container) */}
+      <div className="relative w-full max-w-5xl bg-[#00cf68] flex flex-col gap-2">
         
-        {/* Sum Indicator */}
-        <div className={`
-           px-4 py-1 rounded-full font-bold text-xl border-2 transition-opacity duration-200
-           ${dragState.isDragging ? 'opacity-100' : 'opacity-0'}
-           ${isValidSum 
-             ? 'bg-green-100 text-green-700 border-green-500 scale-110' 
-             : currentSum > TARGET_SUM 
-               ? 'bg-red-100 text-red-500 border-red-300' 
-               : 'bg-yellow-100 text-yellow-600 border-yellow-300'}
-        `}>
-          Sum: {currentSum}
-        </div>
+        {/* Màn hình hiển thị (Screen Area) */}
+        <div className="relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 md:p-5 flex gap-4">
+          
+          {/* Lưới game (Grid) */}
+          <div className="flex-1 relative">
+             {/* Background caro (Graph paper effect) */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none" 
+                 style={{
+                   backgroundImage: 'linear-gradient(#00cf68 1px, transparent 1px), linear-gradient(90deg, #00cf68 1px, transparent 1px)',
+                   backgroundSize: '20px 20px'
+                 }}
+            />
 
-        <div className="flex flex-col items-end">
-          <span className="text-xs font-bold text-gray-500 uppercase">Time</span>
-          <span className={`text-2xl font-black font-mono ${timeLeft < 10 ? 'text-red-600 animate-pulse' : 'text-gray-700'}`}>
-            {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-          </span>
-        </div>
-      </div>
-
-      {/* Grid Container Area */}
-      <div className="flex-1 p-2 md:p-2 flex items-center justify-center overflow-hidden">
-        {/* Outer Wrapper: FIX APPLIED HERE
-            - Removed: w-full, max-w-4xl, fixed height 80vh
-            - Added: maxWidth: 100%, maxHeight: 100%, width: 100%, margin: auto
-        */}
-        <div 
-          className="relative bg-orange-100/50 rounded-xl border-4 border-orange-200 shadow-inner touch-none cursor-crosshair mx-auto"
-          style={{ 
-            aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-            maxWidth: '100%',
-            maxHeight: '100%',
-            width: '50%', 
-            height: '50%', 
-          }}
-          onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
-          onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
-          onMouseUp={handleEnd}
-          onMouseLeave={handleEnd}
-          onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
-          onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
-          onTouchEnd={handleEnd}
-        >
-          {/* Inner Grid: Purely for layout and coordinate reference */}
-          <div
-            ref={gridRef}
-            className="w-full h-full relative"
-            style={{
-              display: 'grid', 
-              gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, 
-              gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-            }}
-          >
-            {/* Selection Box Overlay */}
-            {dragState.isDragging && dragState.startPos && dragState.currentPos && (
-              <div 
-                className={`absolute pointer-events-none border-4 rounded-lg z-30 transition-colors
-                  ${isValidSum ? 'border-green-500 bg-green-500/20' : 'border-blue-500 bg-blue-500/20'}
-                `}
+            {/* Vùng chạm xử lý logic */}
+            <div 
+              className="relative w-full h-full touch-none cursor-crosshair z-10"
+              style={{ 
+                aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
+                maxHeight: '80vh',
+                margin: '0 auto'
+              }}
+              onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+              onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
+              onMouseUp={handleEnd}
+              onMouseLeave={handleEnd}
+              onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
+              onTouchMove={(e) => handleMove(e.touches[0].clientX, e.touches[0].clientY)}
+              onTouchEnd={handleEnd}
+            >
+              <div
+                ref={gridRef}
+                className="w-full h-full relative"
                 style={{
-                  left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
-                  top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
-                  width: `${(Math.abs(dragState.currentPos.col - dragState.startPos.col) + 1) * (100 / GRID_COLS)}%`,
-                  height: `${(Math.abs(dragState.currentPos.row - dragState.startPos.row) + 1) * (100 / GRID_ROWS)}%`,
+                  display: 'grid', 
+                  gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, 
+                  gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
                 }}
-              />
-            )}
-
-            {/* Grid Cells */}
-            {grid.map((row, r) => 
-              row.map((cell, c) => (
-                <div 
-                  key={`${r}-${c}-${cell.id}`} 
-                  className="w-full h-full p-[2px] md:p-1 pointer-events-none"
-                >
-                  <MangoIcon 
-                    value={cell.value} 
-                    isSelected={isCellSelected(r, c)}
-                    isRemoved={cell.isRemoved}
+              >
+                {/* Selection Box */}
+                {dragState.isDragging && dragState.startPos && dragState.currentPos && (
+                  <div 
+                    className={`absolute pointer-events-none border-2 rounded-md z-30 transition-colors
+                      ${isValidSum ? 'border-red-500 bg-red-500/20' : 'border-blue-500 bg-blue-500/20'}
+                    `}
+                    style={{
+                      left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
+                      top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
+                      width: `${(Math.abs(dragState.currentPos.col - dragState.startPos.col) + 1) * (100 / GRID_COLS)}%`,
+                      height: `${(Math.abs(dragState.currentPos.row - dragState.startPos.row) + 1) * (100 / GRID_ROWS)}%`,
+                    }}
                   />
-                </div>
-              ))
-            )}
+                )}
+
+                {/* Cells */}
+                {grid.map((row, r) => 
+                  row.map((cell, c) => (
+                    <div key={`${r}-${c}-${cell.id}`} className="w-full h-full p-[1px] pointer-events-none">
+                      <MangoIcon 
+                        value={cell.value} 
+                        isSelected={isCellSelected(r, c)}
+                        isRemoved={cell.isRemoved}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Điểm số hiển thị nổi bên góc phải màn hình lưới */}
+            <div className="absolute top-0 right-0 p-2 z-20">
+               <span className="text-[#00cf68] font-bold text-3xl font-mono drop-shadow-sm">{score}</span>
+            </div>
+
+            {/* Sum Indicator (Floating follow mouse/touch ideally, but centered bottom here for simplicity) */}
+            <div className={`
+              absolute bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full font-bold text-xl shadow-lg border-2 transition-all duration-200 z-30
+              ${dragState.isDragging ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+              ${isValidSum ? 'bg-red-500 text-white border-white' : 'bg-white text-gray-500 border-gray-200'}
+            `}>
+              Sum: {currentSum}
+            </div>
+          </div>
+
+          {/* Thanh thời gian dọc (Vertical Time Bar) giống hình mẫu */}
+          <div className="w-4 md:w-6 bg-white/50 rounded-full border border-green-200 relative overflow-hidden hidden sm:block">
+            <div 
+              className={`absolute bottom-0 w-full transition-all duration-1000 ease-linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`}
+              style={{ height: `${(timeLeft / GAME_DURATION_SECONDS) * 100}%` }}
+            />
           </div>
         </div>
-      </div>
-      
-      {/* Footer / Hint */}
-      <div className="bg-white/50 p-2 text-center text-xs text-gray-400 shrink-0">
-        Drag to select sum of 10
+
+        {/* Thanh điều khiển bên dưới (Control Bar) */}
+        <div className="flex justify-between items-center px-4 pt-2 text-white">
+           <button 
+             onClick={() => window.location.reload()}
+             className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
+           >
+             Reset
+           </button>
+           
+           <div className="flex items-center gap-4 text-sm font-medium">
+             <label className="flex items-center gap-2 cursor-pointer">
+               <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
+               <span>Light Colors</span>
+             </label>
+             <label className="flex items-center gap-2 cursor-pointer">
+               <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
+               <span>BGM</span>
+             </label>
+             {/* Fake slider */}
+             <div className="w-24 h-2 bg-black/20 rounded-full relative">
+                <div className="absolute left-2/3 w-3 h-3 bg-white rounded-full -top-0.5 shadow"></div>
+             </div>
+           </div>
+        </div>
+
       </div>
     </div>
   );
