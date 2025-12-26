@@ -108,7 +108,7 @@ export const Game: React.FC<GameProps> = ({
     // Dùng link nhạc miễn phí bản quyền
     bgmRef.current = new Audio('/assets/bgm.mp3'); 
     bgmRef.current.loop = true;
-    bgmRef.current.volume = 0.2; // Nhạc nền nhỏ
+    bgmRef.current.volume = 0.1; // Nhạc nền nhỏ
 
     // Tự động phát nếu có thể
     if (!isMuted) {
