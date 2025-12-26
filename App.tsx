@@ -18,8 +18,10 @@ export default function App() {
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
+  
+  // Xác định ai là chủ phòng để tạo map gốc
+  const [isHost, setIsHost] = useState(false);
 
-  // Load high score
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
     if (saved) {
@@ -40,6 +42,7 @@ export default function App() {
 
     newPeer.on('connection', (connection) => {
       console.log('Incoming connection from', connection.peer);
+      setIsHost(true); // Ai nhận kết nối thì là Host
       handleConnection(connection);
     });
 
@@ -58,23 +61,20 @@ export default function App() {
     connection.on('open', () => {
       console.log("Connected to", connection.peer);
       setIsConnecting(false);
-      // Khi kết nối thành công, bắt đầu game ngay
       setGameState(GameState.PLAYING);
       
-      // Gửi tín hiệu START để cả 2 cùng chơi
-      connection.send({ type: 'START' } as MultiPlayerMessage);
+      // Host không gửi START ở đây nữa, mà để Game component tự init và gửi Grid
     });
 
     connection.on('data', (data: any) => {
       const msg = data as MultiPlayerMessage;
+      // App chỉ xử lý chuyển trạng thái game, còn Grid update để Game component lo
       if (msg.type === 'START') {
         setGameState(GameState.PLAYING);
         setOpponentScore(0);
         setFinalScore(0);
-      } else if (msg.type === 'SCORE_UPDATE') {
-        setOpponentScore(msg.payload);
       } else if (msg.type === 'GAME_OVER') {
-        setOpponentScore(msg.payload);
+        setOpponentScore(msg.payload.score);
       } else if (msg.type === 'RESTART') {
         setGameState(GameState.PLAYING);
         setOpponentScore(0);
@@ -86,12 +86,14 @@ export default function App() {
       alert("Opponent disconnected");
       setGameState(GameState.MENU);
       setConn(null);
+      setIsHost(false);
     });
   };
 
   const connectToPeer = (remotePeerId: string) => {
     if (!peer) return;
     setIsConnecting(true);
+    setIsHost(false); // Người đi join là Client
     const connection = peer.connect(remotePeerId);
     handleConnection(connection);
   };
@@ -100,6 +102,7 @@ export default function App() {
 
   const handleStartSolo = () => {
     setIsMultiplayer(false);
+    setIsHost(true); // Solo thì coi như mình là host
     setGameState(GameState.PLAYING);
     if (conn) conn.close();
   };
@@ -125,13 +128,7 @@ export default function App() {
     setGameState(GameState.GAME_OVER);
     
     if (isMultiplayer && conn) {
-      conn.send({ type: 'GAME_OVER', payload: score } as MultiPlayerMessage);
-    }
-  };
-
-  const handleScoreUpdate = (newScore: number) => {
-    if (isMultiplayer && conn) {
-      conn.send({ type: 'SCORE_UPDATE', payload: newScore } as MultiPlayerMessage);
+      conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
   };
 
@@ -152,12 +149,12 @@ export default function App() {
   };
 
   return (
-    <div className="h-full w-full relative overflow-hidden bg-amber-50">
+    // Sử dụng dvh để fix lỗi layout trên mobile safari/chrome
+    <div className="h-[100dvh] w-full relative overflow-hidden bg-amber-50">
       {gameState === GameState.MENU && (
-        // Bạn cần sửa StartScreen để có thêm nút Multiplayer
         <StartScreen 
           onStart={handleStartSolo} 
-          onMultiplayer={handleOpenLobby} // Thêm prop này vào StartScreen
+          onMultiplayer={handleOpenLobby}
           highScore={highScore} 
         />
       )}
@@ -176,8 +173,8 @@ export default function App() {
           key={isMultiplayer ? 'multi' + Date.now() : 'solo' + Date.now()}
           onGameOver={handleGameOver} 
           isMultiplayer={isMultiplayer}
-          opponentScore={opponentScore}
-          onScoreUpdate={handleScoreUpdate}
+          isHost={isHost}
+          connection={conn}
         />
       )}
 
@@ -186,8 +183,6 @@ export default function App() {
            <div className="absolute inset-0 opacity-10 pointer-events-none bg-repeat bg-[url('https://www.transparenttextures.com/patterns/food.png')]"></div>
            <GameOverScreen 
              score={finalScore} 
-             opponentScore={opponentScore}
-             isMultiplayer={isMultiplayer}
              highScore={highScore} 
              onRestart={handleRestart} 
              onHome={handleGoHome}

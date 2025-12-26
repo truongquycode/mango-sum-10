@@ -12,7 +12,7 @@ export interface MangoCell {
 
 export enum GameState {
   MENU = 'MENU',
-  LOBBY = 'LOBBY', // Thêm trạng thái Lobby
+  LOBBY = 'LOBBY',
   PLAYING = 'PLAYING',
   GAME_OVER = 'GAME_OVER',
 }
@@ -23,8 +23,7 @@ export interface DragState {
   currentPos: Position | null;
 }
 
-// Thêm interface cho tin nhắn mạng
 export interface MultiPlayerMessage {
-  type: 'START' | 'SCORE_UPDATE' | 'GAME_OVER' | 'RESTART';
+  type: 'START' | 'GRID_UPDATE' | 'GAME_OVER' | 'RESTART';
   payload?: any;
 }
