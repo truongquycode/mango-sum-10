@@ -1,3 +1,4 @@
+// components/Game.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DataConnection } from 'peerjs';
 import { GRID_ROWS, GRID_COLS, TARGET_SUM, GAME_DURATION_SECONDS, BASE_SCORE } from '../constants';
@@ -13,21 +14,64 @@ interface GameProps {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+// --- THUẬT TOÁN MỚI: ĐẢM BẢO SOLVABLE (CÓ THỂ GIẢI HẾT) ---
+
+// 1. Hàm trộn mảng (Fisher-Yates Shuffle)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArr = [...array];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  }
+  return newArr;
+};
+
+// 2. Tạo danh sách số luôn có tổng ghép lại bằng 10
+const generateSolvableValues = (totalCells: number): number[] => {
+  const values: number[] = [];
+  
+  // Chúng ta sẽ thêm từng CẶP số (Pair) có tổng = 10
+  // Vì totalCells (5x4=20) là số chẵn, nên cách này luôn hoạt động hoàn hảo.
+  while (values.length < totalCells) {
+    // Random số thứ nhất từ 1 đến 9
+    const num1 = Math.floor(Math.random() * 9) + 1;
+    // Số thứ hai chắc chắn phải là (10 - num1)
+    const num2 = TARGET_SUM - num1;
+    
+    values.push(num1);
+    values.push(num2);
+  }
+
+  // Nếu map kích thước lẻ (hiếm gặp), ta có thể xóa bớt hoặc xử lý sau, 
+  // nhưng với 5x4 thì luôn chẵn nên không lo.
+  return shuffleArray(values);
+};
+
 const createInitialGrid = (): MangoCell[][] => {
   const grid: MangoCell[][] = [];
+  const totalCells = GRID_ROWS * GRID_COLS;
+  
+  // Lấy danh sách số đã được tính toán kỹ
+  const solvableValues = generateSolvableValues(totalCells);
+  let valueIndex = 0;
+
   for (let r = 0; r < GRID_ROWS; r++) {
     const row: MangoCell[] = [];
     for (let c = 0; c < GRID_COLS; c++) {
       row.push({
         id: generateId(),
-        value: Math.floor(Math.random() * 9) + 1,
+        // Lấy giá trị từ danh sách đã trộn
+        value: solvableValues[valueIndex],
         isRemoved: false,
       });
+      valueIndex++;
     }
     grid.push(row);
   }
   return grid;
 };
+
+// --- KẾT THÚC THUẬT TOÁN MỚI ---
 
 export const Game: React.FC<GameProps> = ({ 
   onGameOver, 
@@ -47,7 +91,7 @@ export const Game: React.FC<GameProps> = ({
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // --- MULTIPLAYER & LOGIC (Giữ nguyên phần logic sync) ---
+  // --- MULTIPLAYER SYNC ---
   useEffect(() => {
     if (isMultiplayer && isHost && connection && grid.length > 0) {
       connection.send({ type: 'GRID_UPDATE', payload: { grid, score } } as MultiPlayerMessage);
@@ -87,14 +131,12 @@ export const Game: React.FC<GameProps> = ({
     return () => { if (gridRef.current) gridRef.current.removeEventListener('touchmove', preventDefault); };
   }, []);
 
-  // --- LOGIC XỬ LÝ TOUCH/MOUSE ---
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
     const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
     if (isOutside && !clampToEdge) return null;
     
-    // Tính toán dựa trên kích thước thực tế của khung lưới hiện tại
     const cellWidth = rect.width / GRID_COLS;
     const cellHeight = rect.height / GRID_ROWS;
     
@@ -113,7 +155,6 @@ export const Game: React.FC<GameProps> = ({
     return r >= minRow && r <= maxRow && c >= minCol && c <= maxCol;
   }, [dragState]);
 
-  // Các hàm xử lý sự kiện (handleStart, handleMove, handleEnd, processMatch...) giữ nguyên logic
   const handleStart = (clientX: number, clientY: number) => {
     if (isProcessing) return; 
     const pos = getCellFromCoords(clientX, clientY, true); 
@@ -159,13 +200,11 @@ export const Game: React.FC<GameProps> = ({
   if (grid.length === 0) return <div className="flex items-center justify-center h-full text-orange-600 font-bold animate-pulse">Waiting for Host...</div>;
 
   return (
-    // LOGIC LAYOUT MỚI: Flexbox chiếm full chiều cao
     <div className="h-full w-full flex flex-col bg-[#00cf68] select-none touch-none overflow-hidden">
       
-      {/* 1. Phần HUD (Score & Time) - Chiếm chiều cao cố định hoặc shrink */}
+      {/* 1. Phần HUD (Score & Time) */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
         <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
-          
            {/* Time Bar */}
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
              <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
@@ -192,14 +231,11 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* 2. Phần Grid Game - Tự động co giãn (flex-1) và căn giữa */}
+      {/* 2. Phần Grid Game */}
       <div className="flex-1 flex items-center justify-center p-2 w-full overflow-hidden relative">
         <div 
           className="relative z-10"
           style={{ 
-            // LOGIC QUAN TRỌNG NHẤT:
-            // aspect-ratio đảm bảo khung luôn đúng tỉ lệ
-            // maxHeight và maxWidth đảm bảo nó không bao giờ tràn ra khỏi vùng chứa cha (flex-1)
             aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
             height: '100%',
             width: '100%',
@@ -222,7 +258,6 @@ export const Game: React.FC<GameProps> = ({
               display: 'grid', 
               gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, 
               gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-              // Gap nhỏ để tách biệt các ô, có thể bỏ nếu muốn dính sát
               gap: '2px' 
             }}
           >
