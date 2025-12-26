@@ -284,12 +284,25 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
             Events are attached here to capture swipes that start/end on the border or slightly outside cells.
         */}
         <div 
-          className="relative bg-orange-100/50 rounded-xl border-4 border-orange-200 shadow-inner w-full max-w-4xl touch-none cursor-crosshair"
+          // 1. Bỏ "w-full" và "max-w-4xl" để khung không bị ép buộc kích thước ngang
+          className="relative bg-orange-100/50 rounded-xl border-4 border-orange-200 shadow-inner touch-none cursor-crosshair"
           style={{ 
+            // 2. Giữ tỉ lệ khung hình chuẩn
             aspectRatio: `${GRID_COLS}/${GRID_ROWS}`,
-            height: 'min(100%, 80vh)', 
-            width: 'min(100%, 100vh * 1.4)' 
+            
+            // 3. Logic mới: Tự động co giãn tối đa nhưng KHÔNG vượt quá khung cha
+            maxWidth: '100%',
+            maxHeight: '100%',
+            
+            // Mẹo: Đặt width/height lớn và để max-width/height cắt bớt theo tỉ lệ
+            width: '100%', 
+            height: 'auto', 
+            
+            // Căn giữa nếu cần (thường flex cha đã lo việc này)
+            marginLeft: 'auto',
+            marginRight: 'auto'
           }}
+          // ... giữ nguyên các dòng sự kiện onMouseDown, onTouchStart phía dưới ...
           onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
           onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
           onMouseUp={handleEnd}
