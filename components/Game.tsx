@@ -7,8 +7,8 @@ import { MangoIcon } from './MangoIcon';
 interface GameProps {
   onGameOver: (score: number) => void;
   isMultiplayer?: boolean;
-  isHost?: boolean;       // Thêm prop này
-  connection?: DataConnection | null; // Thêm prop này
+  isHost?: boolean;
+  connection?: DataConnection | null;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -35,7 +35,6 @@ export const Game: React.FC<GameProps> = ({
   isHost = true, 
   connection 
 }) => {
-  // Nếu là Host thì tạo grid, nếu không (Client) thì để rỗng chờ Host gửi qua
   const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
   const [score, setScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
@@ -52,18 +51,15 @@ export const Game: React.FC<GameProps> = ({
 
   // --- LOGIC ĐỒNG BỘ MULTIPLAYER ---
   
-  // 1. Khi bắt đầu game, nếu là Host thì gửi Grid cho Client
   useEffect(() => {
     if (isMultiplayer && isHost && connection && grid.length > 0) {
-      // Gửi toàn bộ trạng thái ban đầu
       connection.send({ 
         type: 'GRID_UPDATE', 
-        payload: { grid, score, opponentScore: score } // Gửi grid và score
+        payload: { grid, score, opponentScore: score }
       } as MultiPlayerMessage);
     }
-  }, []); // Chạy 1 lần khi mount
+  }, []);
 
-  // 2. Lắng nghe cập nhật từ đối thủ
   useEffect(() => {
     if (!isMultiplayer || !connection) return;
 
@@ -71,24 +67,16 @@ export const Game: React.FC<GameProps> = ({
       const msg = data as MultiPlayerMessage;
       
       if (msg.type === 'GRID_UPDATE') {
-        // CẬP NHẬT MAP MỚI NGAY LẬP TỨC
         if (msg.payload.grid) {
           setGrid(msg.payload.grid);
         }
-        // Cập nhật điểm của đối thủ (đối thủ gửi điểm của họ qua 'score')
         if (msg.payload.score !== undefined) {
           setOpponentScore(msg.payload.score);
         }
       } 
-      // Xử lý Start game nếu client vào sau
-      else if (msg.type === 'START') {
-         // Reset game nếu cần
-      }
     };
 
     connection.on('data', handleData);
-    
-    // Cleanup listener to avoid duplicates handled by PeerJS usually but safe to keep clean
     return () => {
       connection.off('data', handleData);
     };
@@ -107,11 +95,10 @@ export const Game: React.FC<GameProps> = ({
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score]);
 
-  // Prevent default touch actions on mobile to stop scrolling/pull-to-refresh
+  // Prevent default touch actions on mobile
   useEffect(() => {
     const preventDefault = (e: TouchEvent) => e.preventDefault();
     if (gridRef.current) {
-        // Chỉ chặn touch trên vùng chơi game
         gridRef.current.addEventListener('touchmove', preventDefault, { passive: false });
     }
     return () => {
@@ -121,7 +108,6 @@ export const Game: React.FC<GameProps> = ({
     };
   }, []);
 
-  // ... (Giữ nguyên logic getCellFromCoords, isCellSelected, handleStart, handleMove)
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -202,22 +188,33 @@ export const Game: React.FC<GameProps> = ({
     setScore(newScore);
     setTimeLeft(prev => prev + 3);
 
-    // Tính toán Grid Mới
-    const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
-    cellsToRemove.forEach(pos => {
-      newGrid[pos.row][pos.col].isRemoved = true;
-    });
-    
-    // Cập nhật Local
-    setGrid(newGrid);
+    // Gửi điểm số mới cho đối thủ
+    if (isMultiplayer && onScoreUpdate) {
+      // (Không cần gửi riêng ở đây nữa vì đã gộp vào GRID_UPDATE bên dưới, 
+      // nhưng giữ lại callback này nếu App.tsx cần dùng cho mục đích khác)
+    }
 
-    // GỬI GRID MỚI CHO ĐỐI THỦ NGAY LẬP TỨC
+    setGrid(prevGrid => {
+      const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
+      cellsToRemove.forEach(pos => {
+        newGrid[pos.row][pos.col].isRemoved = true;
+      });
+      return newGrid;
+    });
+
+    // GỬI GRID MỚI CHO ĐỐI THỦ
     if (isMultiplayer && connection) {
+      // Tính toán grid mới để gửi đi (tránh delay state)
+      const newGridForSend = grid.map(row => row.map(cell => ({ ...cell })));
+      cellsToRemove.forEach(pos => {
+        newGridForSend[pos.row][pos.col].isRemoved = true;
+      });
+
       connection.send({
         type: 'GRID_UPDATE',
         payload: {
-          grid: newGrid,      // Gửi nguyên cái map đã bị xóa ô
-          score: newScore     // Gửi điểm của mình cho họ thấy
+          grid: newGridForSend,
+          score: newScore
         }
       } as MultiPlayerMessage);
     }
@@ -269,7 +266,7 @@ export const Game: React.FC<GameProps> = ({
                  }}
             />
 
-            {/* Grid Container - Tối ưu cho Mobile */}
+            {/* Grid Container */}
             <div 
               className="relative touch-none cursor-crosshair z-10"
               style={{ 
@@ -360,26 +357,28 @@ export const Game: React.FC<GameProps> = ({
           </div>
         </div>
 
-        {/* Footer Controls */}
-        <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
-           <button 
-             onClick={() => window.location.reload()}
-             className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
-           >
-             Reset
-           </button>
-           
-           <div className="flex items-center gap-4 text-sm font-medium">
-             <label className="flex items-center gap-2 cursor-pointer">
-               <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
-               <span>Light Colors</span>
-             </label>
-             <label className="flex items-center gap-2 cursor-pointer">
-               <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
-               <span>BGM</span>
-             </label>
-           </div>
-        </div>
+        {/* Footer Controls - CHỈ HIỆN KHI KHÔNG PHẢI MULTIPLAYER */}
+        {!isMultiplayer && (
+          <div className="flex justify-between items-center px-4 py-2 text-white shrink-0 h-12">
+             <button 
+               onClick={() => window.location.reload()}
+               className="border-2 border-white/50 rounded px-4 py-1 hover:bg-white/20 font-bold text-sm uppercase tracking-wider"
+             >
+               Reset
+             </button>
+             
+             <div className="flex items-center gap-4 text-sm font-medium">
+               <label className="flex items-center gap-2 cursor-pointer">
+                 <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
+                 <span>Light Colors</span>
+               </label>
+               <label className="flex items-center gap-2 cursor-pointer">
+                 <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
+                 <span>BGM</span>
+               </label>
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );
