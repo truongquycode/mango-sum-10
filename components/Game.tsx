@@ -14,9 +14,7 @@ interface GameProps {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- THUẬT TOÁN MỚI: ĐẢM BẢO SOLVABLE (CÓ THỂ GIẢI HẾT) ---
-
-// 1. Hàm trộn mảng (Fisher-Yates Shuffle)
+// --- THUẬT TOÁN TẠO MAP CÓ LỜI GIẢI (Giữ nguyên từ bước trước) ---
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -26,32 +24,20 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return newArr;
 };
 
-// 2. Tạo danh sách số luôn có tổng ghép lại bằng 10
 const generateSolvableValues = (totalCells: number): number[] => {
   const values: number[] = [];
-  
-  // Chúng ta sẽ thêm từng CẶP số (Pair) có tổng = 10
-  // Vì totalCells (5x4=20) là số chẵn, nên cách này luôn hoạt động hoàn hảo.
   while (values.length < totalCells) {
-    // Random số thứ nhất từ 1 đến 9
     const num1 = Math.floor(Math.random() * 9) + 1;
-    // Số thứ hai chắc chắn phải là (10 - num1)
     const num2 = TARGET_SUM - num1;
-    
     values.push(num1);
     values.push(num2);
   }
-
-  // Nếu map kích thước lẻ (hiếm gặp), ta có thể xóa bớt hoặc xử lý sau, 
-  // nhưng với 5x4 thì luôn chẵn nên không lo.
   return shuffleArray(values);
 };
 
 const createInitialGrid = (): MangoCell[][] => {
   const grid: MangoCell[][] = [];
   const totalCells = GRID_ROWS * GRID_COLS;
-  
-  // Lấy danh sách số đã được tính toán kỹ
   const solvableValues = generateSolvableValues(totalCells);
   let valueIndex = 0;
 
@@ -60,7 +46,6 @@ const createInitialGrid = (): MangoCell[][] => {
     for (let c = 0; c < GRID_COLS; c++) {
       row.push({
         id: generateId(),
-        // Lấy giá trị từ danh sách đã trộn
         value: solvableValues[valueIndex],
         isRemoved: false,
       });
@@ -70,8 +55,6 @@ const createInitialGrid = (): MangoCell[][] => {
   }
   return grid;
 };
-
-// --- KẾT THÚC THUẬT TOÁN MỚI ---
 
 export const Game: React.FC<GameProps> = ({ 
   onGameOver, 
@@ -160,32 +143,58 @@ export const Game: React.FC<GameProps> = ({
     const pos = getCellFromCoords(clientX, clientY, true); 
     if (pos && !grid[pos.row][pos.col].isRemoved) setDragState({ isDragging: true, startPos: pos, currentPos: pos });
   };
+  
   const handleMove = (clientX: number, clientY: number) => {
     if (!dragState.isDragging) return;
     const pos = getCellFromCoords(clientX, clientY, true);
     if (pos) setDragState((prev) => ({ ...prev, currentPos: pos }));
   };
+
   const handleEnd = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) { setDragState({ isDragging: false, startPos: null, currentPos: null }); return; }
+    
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
     const maxRow = Math.max(dragState.startPos.row, dragState.currentPos.row);
     const minCol = Math.min(dragState.startPos.col, dragState.currentPos.col);
     const maxCol = Math.max(dragState.startPos.col, dragState.currentPos.col);
+    
     let currentSum = 0; const selectedCells: Position[] = [];
-    for (let r = minRow; r <= maxRow; r++) { for (let c = minCol; c <= maxCol; c++) { if (!grid[r][c].isRemoved) { currentSum += grid[r][c].value; selectedCells.push({ row: r, col: c }); } } }
-    if (currentSum === TARGET_SUM) processMatch(selectedCells); else if (selectedCells.length > 0) setTimeLeft(prev => Math.max(0, prev - 5));
+    for (let r = minRow; r <= maxRow; r++) { 
+      for (let c = minCol; c <= maxCol; c++) { 
+        if (!grid[r][c].isRemoved) { 
+          currentSum += grid[r][c].value; 
+          selectedCells.push({ row: r, col: c }); 
+        } 
+      } 
+    }
+    
+    if (currentSum === TARGET_SUM) {
+      processMatch(selectedCells);
+    } else if (selectedCells.length > 0) {
+      // --- CHỈNH SỬA: TĂNG HÌNH PHẠT KHI SAI ---
+      // Trước đây là -5, giờ tăng lên -10 giây
+      setTimeLeft(prev => Math.max(0, prev - 10));
+    }
     setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
+
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
     const points = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
-    const newScore = score + points; setScore(newScore); setTimeLeft(prev => prev + 3);
+    const newScore = score + points; 
+    setScore(newScore);
+    
+    // --- CHỈNH SỬA: GIẢM THỜI GIAN CỘNG THÊM ---
+    // Trước đây là +3, giờ giảm xuống còn +1 giây
+    setTimeLeft(prev => prev + 1);
+
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
     cellsToRemove.forEach(pos => { newGrid[pos.row][pos.col].isRemoved = true; });
     setGrid(newGrid);
     if (isMultiplayer && connection) connection.send({ type: 'GRID_UPDATE', payload: { grid: newGrid, score: newScore } } as MultiPlayerMessage);
     setTimeout(() => setIsProcessing(false), 150);
   };
+
   const currentSum = (() => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -202,7 +211,7 @@ export const Game: React.FC<GameProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-[#00cf68] select-none touch-none overflow-hidden">
       
-      {/* 1. Phần HUD (Score & Time) */}
+      {/* HUD (Score & Time) */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
         <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
            {/* Time Bar */}
@@ -217,7 +226,7 @@ export const Game: React.FC<GameProps> = ({
                <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
              </div>
 
-             {/* Đối thủ (nếu có) */}
+             {/* Đối thủ */}
              {isMultiplayer && (
                <div className="flex flex-col items-end border-l pl-4 border-gray-200">
                   <span className="text-xs font-bold text-gray-500 uppercase">Enemy</span>
@@ -231,7 +240,7 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* 2. Phần Grid Game */}
+      {/* Grid Game */}
       <div className="flex-1 flex items-center justify-center p-2 w-full overflow-hidden relative">
         <div 
           className="relative z-10"
@@ -283,7 +292,7 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* 3. Footer (Nút Reset) */}
+      {/* Footer (Nút Reset) */}
       <div className="shrink-0 h-14 flex items-center justify-center pb-2">
          {!isMultiplayer && (
            <button 
