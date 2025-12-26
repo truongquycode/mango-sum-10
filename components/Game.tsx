@@ -280,21 +280,7 @@ export const Game: React.FC<GameProps> = ({
              </button>
            ) : <div/>}
            
-           <div className="flex items-center gap-4 text-sm font-medium">
-             {/* Chỉ hiện Light Colors khi chơi Solo */}
-             {!isMultiplayer && (
-               <label className="flex items-center gap-2 cursor-pointer">
-                 <div className="w-4 h-4 border border-white bg-white rounded-sm"></div>
-                 <span>Light Colors</span>
-               </label>
-             )}
-             
-             {/* Giữ lại BGM nếu cần, hoặc có thể ẩn nốt nếu muốn */}
-             <label className="flex items-center gap-2 cursor-pointer">
-               <div className="w-4 h-4 border border-white text-white flex items-center justify-center">✓</div>
-               <span>BGM</span>
-             </label>
-           </div>
+           
         </div>
       </div>
     </div>
