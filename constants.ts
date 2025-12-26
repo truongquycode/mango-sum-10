@@ -1,5 +1,5 @@
-export const GRID_ROWS = 5;
-export const GRID_COLS = 5; // Wider for landscape, handles mobile portrait decently via flex
+export const GRID_ROWS = 10;
+export const GRID_COLS = 10; // Wider for landscape, handles mobile portrait decently via flex
 export const TARGET_SUM = 10;
 export const GAME_DURATION_SECONDS = 120;
 export const BASE_SCORE = 10;
