@@ -5,6 +5,10 @@ import { MangoIcon } from './MangoIcon';
 
 interface GameProps {
   onGameOver: (score: number) => void;
+  // Thêm các props cho multiplayer
+  isMultiplayer?: boolean;
+  opponentScore?: number;
+  onScoreUpdate?: (newScore: number) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -25,7 +29,12 @@ const createInitialGrid = (): MangoCell[][] => {
   return grid;
 };
 
-export const Game: React.FC<GameProps> = ({ onGameOver }) => {
+export const Game: React.FC<GameProps> = ({ 
+  onGameOver, 
+  isMultiplayer = false, 
+  opponentScore = 0, 
+  onScoreUpdate 
+}) => {
   const [grid, setGrid] = useState<MangoCell[][]>(createInitialGrid());
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
@@ -39,7 +48,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Timer Logic
   useEffect(() => {
     if (timeLeft <= 0) {
       onGameOver(score);
@@ -51,7 +59,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score]);
 
-  // --- Logic Coordinates & Dragging ---
+  // (Giữ nguyên các hàm getCellFromCoords, isCellSelected, handleStart, handleMove...)
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -98,7 +106,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     if (pos) setDragState((prev) => ({ ...prev, currentPos: pos }));
   };
 
-  // --- SỬA LOGIC XỬ LÝ KHI THẢ TAY (END DRAG) ---
   const handleEnd = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) {
       setDragState({ isDragging: false, startPos: null, currentPos: null });
@@ -125,7 +132,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
-      // --- PENALTY LOGIC: Trừ 5 giây nếu kéo sai ---
       setTimeLeft(prev => Math.max(0, prev - 5));
     }
 
@@ -136,10 +142,14 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     setIsProcessing(true);
 
     const points = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
-    setScore(prev => prev + points);
-
-    // Bonus time khi đúng
+    const newScore = score + points;
+    setScore(newScore);
     setTimeLeft(prev => prev + 3);
+
+    // Gửi điểm số mới cho đối thủ
+    if (isMultiplayer && onScoreUpdate) {
+      onScoreUpdate(newScore);
+    }
 
     setGrid(prevGrid => {
       const newGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
@@ -154,7 +164,6 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
     }, 150);
   };
 
-  // Vẫn cần tính sum để đổi màu khung chọn (Xanh/Đỏ)
   const getCurrentSelectionSum = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -173,17 +182,19 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
 
   const currentSum = getCurrentSelectionSum();
   const isValidSum = currentSum === TARGET_SUM;
-
-  // --- UI RENDER ---
+  const isWinning = score > opponentScore;
+  const isTied = score === opponentScore;
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full bg-[#00cf68] p-2 select-none touch-none overflow-hidden">
       
       <div className="flex flex-col gap-2 w-full max-w-4xl h-full max-h-full">
         
+        {/* HUD Cập Nhật */}
         <div className="flex-1 min-h-0 relative bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] p-3 flex gap-3 overflow-hidden">
           
           <div className="flex-1 relative flex items-center justify-center">
+            {/* Background */}
             <div className="absolute inset-0 opacity-20 pointer-events-none" 
                  style={{
                    backgroundImage: 'linear-gradient(#00cf68 1px, transparent 1px), linear-gradient(90deg, #00cf68 1px, transparent 1px)',
@@ -191,6 +202,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                  }}
             />
 
+            {/* Grid */}
             <div 
               className="relative touch-none cursor-crosshair z-10"
               style={{ 
@@ -218,7 +230,7 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
                   gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
                 }}
               >
-                {/* Selection Box: Vẫn giữ màu để báo hiệu đúng sai, nhưng không hiện số */}
+                {/* Selection Box */}
                 {dragState.isDragging && dragState.startPos && dragState.currentPos && (
                   <div 
                     className={`absolute pointer-events-none border-2 rounded-md z-30 transition-colors
@@ -249,12 +261,27 @@ export const Game: React.FC<GameProps> = ({ onGameOver }) => {
             </div>
             
             {/* Điểm số */}
-            <div className="absolute top-0 right-0 p-2 z-20">
-               <span className="text-[#00cf68] font-bold text-3xl font-mono drop-shadow-sm">{score}</span>
+            <div className="absolute top-0 right-0 p-2 z-20 flex flex-col items-end">
+               <span className="text-xs font-bold text-[#00cf68]/80">YOU</span>
+               <span className="text-[#00cf68] font-bold text-3xl font-mono drop-shadow-sm leading-none">{score}</span>
+               
+               {isMultiplayer && (
+                 <div className="mt-2 text-right opacity-80">
+                   <span className="text-xs font-bold text-gray-400 block">OPPONENT</span>
+                   <span className="text-xl font-bold text-gray-500 font-mono leading-none">{opponentScore}</span>
+                 </div>
+               )}
             </div>
 
-            {/* ĐÃ XÓA PHẦN HIỂN THỊ SUM INDICATOR Ở ĐÂY */}
-
+            {/* Thanh tiến độ so sánh điểm (Chỉ hiện khi Multiplayer) */}
+            {isMultiplayer && (
+               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-2 bg-gray-200 rounded-full overflow-hidden z-20 border border-white/50">
+                  <div 
+                    className={`h-full transition-all duration-500 ${isWinning ? 'bg-green-500' : isTied ? 'bg-yellow-400' : 'bg-red-500'}`}
+                    style={{ width: `${(score / (score + opponentScore + 1)) * 100}%` }}
+                  />
+               </div>
+            )}
           </div>
 
           {/* Thanh thời gian */}
