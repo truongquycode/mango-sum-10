@@ -10,13 +10,14 @@ interface GameProps {
   isMultiplayer?: boolean;
   isHost?: boolean;
   connection?: DataConnection | null;
-  myName?: string;
-  opponentName?: string;
+  myName?: string;       // Thêm prop
+  opponentName?: string; // Thêm prop
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- ÂM THANH BASE64 ---
+// ... (Giữ nguyên phần ÂM THANH và THUẬT TOÁN TẠO MAP như cũ) ...
+// (Lược bỏ code lặp lại để tập trung vào phần thay đổi)
 const CORRECT_SFX = "data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9";
 
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -64,9 +65,10 @@ export const Game: React.FC<GameProps> = ({
   isMultiplayer = false, 
   isHost = true, 
   connection,
-  myName = "Bạn",
-  opponentName = "Đối thủ"
+  myName = "Bạn",        // Mặc định
+  opponentName = "Đối thủ" 
 }) => {
+  // ... (Giữ nguyên các state và ref)
   const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
   const [score, setScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
@@ -78,6 +80,7 @@ export const Game: React.FC<GameProps> = ({
   
   const [isMuted, setIsMuted] = useState(false);
 
+  // Refs
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [dragState, setDragState] = useState<DragState>({
@@ -85,11 +88,9 @@ export const Game: React.FC<GameProps> = ({
   });
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // --- HỆ THỐNG ÂM THANH ---
+  // ... (Giữ nguyên logic Audio) ...
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    // Nhạc nền từ thư mục public
     const audio = new Audio('/assets/bgm.mp3'); 
     audio.loop = true;
     audio.volume = 0.3; 
@@ -97,12 +98,10 @@ export const Game: React.FC<GameProps> = ({
 
     const forcePlayMusic = () => {
       if (bgmRef.current && !isMuted && bgmRef.current.paused) {
-        bgmRef.current.play()
-          .then(() => {
+        bgmRef.current.play().then(() => {
             document.removeEventListener('click', forcePlayMusic);
             document.removeEventListener('touchstart', forcePlayMusic);
-          })
-          .catch(e => console.error("Chờ tương tác...", e));
+          }).catch(e => console.error("Chờ tương tác...", e));
       }
       if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
@@ -163,7 +162,7 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted]);
 
-  // --- LOGIC GAME ---
+  // ... (Logic Game: Streak, Sync, Timer, Dragging - GIỮ NGUYÊN) ...
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (streak > 0) { timer = setTimeout(() => { setStreak(0); }, 5000); }
@@ -172,6 +171,7 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     if (isMultiplayer && isHost && connection && grid.length > 0) {
+      // Gửi cả tên của mình kèm Grid update
       connection.send({ type: 'GRID_UPDATE', payload: { grid, score, opponentScore: score, opponentName: myName } } as MultiPlayerMessage);
     }
   }, []);
@@ -203,6 +203,7 @@ export const Game: React.FC<GameProps> = ({
     return () => clearInterval(timer);
   }, [timeLeft, onGameOver, score, isMultiplayer, connection]);
 
+  // Touch handlers
   useEffect(() => {
     const preventDefault = (e: TouchEvent) => e.preventDefault();
     if (gridRef.current) gridRef.current.addEventListener('touchmove', preventDefault, { passive: false });
@@ -294,17 +295,15 @@ export const Game: React.FC<GameProps> = ({
   })();
   const isValidSum = currentSum === TARGET_SUM;
 
-  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-white font-bold animate-pulse text-xl">Đang đợi chủ phòng...</div>;
+  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-orange-600 font-bold animate-pulse">Đang đợi chủ phòng...</div>;
 
   return (
-    // ĐỔI BACKGROUND SANG MÀU XANH THANH LAM (#06b6d4)
-    <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden">
-      
+    <div className="h-full w-full flex flex-col bg-[#00cf68] select-none touch-none overflow-hidden">
       {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
-        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 flex justify-between items-center relative">
+        <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
-             <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00bcd4]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
+             <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
            </div>
 
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
@@ -312,7 +311,7 @@ export const Game: React.FC<GameProps> = ({
              {/* BÊN MÌNH (YOU) */}
              <div className="flex flex-col relative w-24 sm:w-32 truncate">
                <div className="flex items-center relative">
-                 <span className="text-xs font-bold text-[#00838f] uppercase truncate">{myName}</span>
+                 <span className="text-xs font-bold text-[#00cf68] uppercase truncate">{myName}</span>
                  
                  {/* Streak Icon (Absolute) */}
                  <div className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 transition-all duration-300 ${streak > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
@@ -329,7 +328,7 @@ export const Game: React.FC<GameProps> = ({
                  </div>
                </div>
                
-               <span className="text-2xl font-black text-[#006064] leading-none">{score}</span>
+               <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
              </div>
 
              {/* ĐỐI THỦ (OPPONENT) */}
@@ -361,8 +360,7 @@ export const Game: React.FC<GameProps> = ({
         >
           <div ref={gridRef} className="w-full h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: '2px' }}>
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
-              // Đổi màu khung chọn
-              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-cyan-200 bg-cyan-100/30'}`}
+              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-blue-500 bg-blue-500/10'}`}
                 style={{
                   left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
                   top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
