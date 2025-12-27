@@ -25,7 +25,7 @@ export interface DragState {
 }
 
 export interface MultiPlayerMessage {
-  // Thêm SYNC_MAP và UPDATE_SCORE để xử lý riêng biệt
-  type: 'START' | 'SYNC_MAP' | 'UPDATE_SCORE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY';
+  // Đã thêm GRID_UPDATE vào đây để sửa lỗi
+  type: 'START' | 'GRID_UPDATE' | 'SYNC_MAP' | 'UPDATE_SCORE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY';
   payload?: any;
 }
