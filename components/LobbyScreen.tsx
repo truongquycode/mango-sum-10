@@ -103,7 +103,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ displayId, onJoin, onB
               ) : (
                 <div className="animate-pulse text-gray-400 font-mono">Đang tạo mã...</div>
               )}
-              <p className="text-[10px] text-gray-400 mt-2">Gửi 4 số này cho bạn bè để chơi cùng.</p>
+              <p className="text-[10px] text-gray-400 mt-2">Gửi 4 số này cho ảnh/ẻm để chơi cùng.</p>
             </div>
 
             <div className="relative flex py-2 items-center">
@@ -116,7 +116,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ displayId, onJoin, onB
             <div className="space-y-3">
               <input 
                 type="number" 
-                placeholder="Nhập mã 4 số của bạn" 
+                placeholder="Nhập mã 4 số của ảnh/ẻm..." 
                 value={remoteCode}
                 onChange={(e) => setRemoteCode(e.target.value.slice(0,4))}
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-cyan-400 focus:outline-none font-mono text-center text-xl placeholder:text-base placeholder:font-sans transition-colors"
