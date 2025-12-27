@@ -1,3 +1,4 @@
+// components/UI/Button.tsx
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -8,8 +9,9 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'primary', className =
   const baseStyles = "px-6 py-3 rounded-xl font-bold text-lg shadow-lg transform transition active:scale-95 active:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-orange-500 text-white hover:bg-orange-600 border-b-4 border-orange-700",
-    secondary: "bg-yellow-400 text-yellow-900 hover:bg-yellow-500 border-b-4 border-yellow-600",
+    // Đổi sang màu Cyan (Xanh Thanh Lam)
+    secondary: "bg-cyan-500 text-white hover:bg-cyan-600 border-b-4 border-cyan-700",
+    primary: "bg-white text-cyan-900 hover:bg-gray-50 border-b-4 border-gray-300",
     danger: "bg-red-500 text-white hover:bg-red-600 border-b-4 border-red-700",
   };
 

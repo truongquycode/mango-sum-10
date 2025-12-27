@@ -10,25 +10,15 @@ interface GameProps {
   isMultiplayer?: boolean;
   isHost?: boolean;
   connection?: DataConnection | null;
+  myName?: string;
+  opponentName?: string;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- ÂM THANH BASE64 (Đảm bảo hoạt động 100% không cần mạng) ---
+// --- ÂM THANH BASE64 ---
+const CORRECT_SFX = "data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9";
 
-// Tiếng "Ting" (Đúng)
-const CORRECT_SFX = "data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9";
-
-// Tiếng "Buzz" (Sai) - Âm thanh trầm thấp
-const WRONG_SFX = "data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; 
-// (Lưu ý: Base64 ở trên là ví dụ ngắn gọn để tránh quá dài, code dưới sẽ dùng logic giả lập âm thanh đơn giản nếu Base64 không đủ)
-
-const AUDIO_ASSETS = {
-  // Nhạc nền (Link ổn định hơn)
-  BGM: 'https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3', 
-};
-
-// ... (Giữ nguyên phần thuật toán tạo Map)
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -73,7 +63,9 @@ export const Game: React.FC<GameProps> = ({
   onGameOver, 
   isMultiplayer = false, 
   isHost = true, 
-  connection 
+  connection,
+  myName = "Bạn",
+  opponentName = "Đối thủ"
 }) => {
   const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
   const [score, setScore] = useState(0);
@@ -84,79 +76,86 @@ export const Game: React.FC<GameProps> = ({
   const [streak, setStreak] = useState(0);
   const [errorCellIds, setErrorCellIds] = useState<Set<string>>(new Set());
   
-  // Trạng thái bật/tắt nhạc
   const [isMuted, setIsMuted] = useState(false);
 
-  // Refs cho Audio
   const bgmRef = useRef<HTMLAudioElement | null>(null);
-  
-  // Sử dụng AudioContext cho SFX để đảm bảo độ trễ thấp nhất và không lỗi link
   const audioContextRef = useRef<AudioContext | null>(null);
-
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false, startPos: null, currentPos: null,
   });
-
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // --- HỆ THỐNG ÂM THANH MỚI (AUDIO CONTEXT) ---
+  // --- HỆ THỐNG ÂM THANH ---
   useEffect(() => {
-    // 1. Khởi tạo AudioContext
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Nhạc nền từ thư mục public
+    const audio = new Audio('/assets/bgm.mp3'); 
+    audio.loop = true;
+    audio.volume = 0.3; 
+    bgmRef.current = audio;
 
-    // 2. Khởi tạo BGM (Dùng thẻ Audio thường cho nhạc nền)
-    // Dùng link nhạc miễn phí bản quyền
-    bgmRef.current = new Audio('/assets/bgm.mp3'); 
-    bgmRef.current.loop = true;
-    bgmRef.current.volume = 0.1; // Nhạc nền nhỏ
+    const forcePlayMusic = () => {
+      if (bgmRef.current && !isMuted && bgmRef.current.paused) {
+        bgmRef.current.play()
+          .then(() => {
+            document.removeEventListener('click', forcePlayMusic);
+            document.removeEventListener('touchstart', forcePlayMusic);
+          })
+          .catch(e => console.error("Chờ tương tác...", e));
+      }
+      if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+    };
 
-    // Tự động phát nếu có thể
     if (!isMuted) {
-      bgmRef.current.play().catch(() => console.log("Cần click để phát nhạc"));
+      const playPromise = bgmRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          document.addEventListener('click', forcePlayMusic);
+          document.addEventListener('touchstart', forcePlayMusic);
+        });
+      }
     }
 
     return () => {
       bgmRef.current?.pause();
       if (audioContextRef.current) audioContextRef.current.close();
+      document.removeEventListener('click', forcePlayMusic);
+      document.removeEventListener('touchstart', forcePlayMusic);
     };
   }, []);
 
-  // Xử lý bật/tắt Mute
   useEffect(() => {
     if (bgmRef.current) {
-      if (isMuted) {
-        bgmRef.current.pause();
-      } else {
-        bgmRef.current.play().catch(() => {});
-      }
+      if (isMuted) bgmRef.current.pause();
+      else bgmRef.current.play().catch(() => {});
     }
   }, [isMuted]);
 
-  // Hàm tạo âm thanh tổng hợp (Synthesizer) - KHÔNG BAO GIỜ LỖI LINK
   const playSynthSound = useCallback((type: 'correct' | 'wrong') => {
     if (isMuted || !audioContextRef.current) return;
+    if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
 
     const ctx = audioContextRef.current;
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
-
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
     if (type === 'correct') {
-      // Tiếng "Ting": Sóng Sine, tần số cao, giảm dần nhanh
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime); // Bắt đầu 800Hz
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1); // Lên 1200Hz
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
       gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
     } else {
-      // Tiếng "Buzz": Sóng Sawtooth, tần số thấp, rung
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, ctx.currentTime); // Thấp 150Hz
-      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3); // Xuống 100Hz
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
       gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
       osc.start();
@@ -164,7 +163,7 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted]);
 
-  // ... (Các useEffect logic game giữ nguyên)
+  // --- LOGIC GAME ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (streak > 0) { timer = setTimeout(() => { setStreak(0); }, 5000); }
@@ -173,7 +172,7 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     if (isMultiplayer && isHost && connection && grid.length > 0) {
-      connection.send({ type: 'GRID_UPDATE', payload: { grid, score } } as MultiPlayerMessage);
+      connection.send({ type: 'GRID_UPDATE', payload: { grid, score, opponentScore: score, opponentName: myName } } as MultiPlayerMessage);
     }
   }, []);
 
@@ -184,7 +183,9 @@ export const Game: React.FC<GameProps> = ({
       if (msg.type === 'GRID_UPDATE') {
         if (msg.payload.grid) setGrid(msg.payload.grid);
         if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
-      } else if (msg.type === 'TIME_UPDATE') setOpponentTimeLeft(msg.payload);
+      } else if (msg.type === 'TIME_UPDATE') {
+        setOpponentTimeLeft(msg.payload);
+      }
     };
     connection.on('data', handleData);
     return () => { connection.off('data', handleData); };
@@ -208,7 +209,6 @@ export const Game: React.FC<GameProps> = ({
     return () => { if (gridRef.current) gridRef.current.removeEventListener('touchmove', preventDefault); };
   }, []);
 
-  // ... (Logic Dragging)
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -233,12 +233,7 @@ export const Game: React.FC<GameProps> = ({
 
   const handleStart = (clientX: number, clientY: number) => {
     if (isProcessing) return; 
-    
-    // Resume AudioContext khi người dùng tương tác lần đầu (Fix lỗi không có tiếng trên Chrome)
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
-    
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
     const pos = getCellFromCoords(clientX, clientY, true); 
     if (pos && !grid[pos.row][pos.col].isRemoved) setDragState({ isDragging: true, startPos: pos, currentPos: pos });
   };
@@ -251,30 +246,17 @@ export const Game: React.FC<GameProps> = ({
 
   const handleEnd = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) { setDragState({ isDragging: false, startPos: null, currentPos: null }); return; }
-    
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
     const maxRow = Math.max(dragState.startPos.row, dragState.currentPos.row);
     const minCol = Math.min(dragState.startPos.col, dragState.currentPos.col);
     const maxCol = Math.max(dragState.startPos.col, dragState.currentPos.col);
-    
-    let currentSum = 0; const selectedCells: Position[] = [];
-    const idsToCheck: string[] = [];
-
-    for (let r = minRow; r <= maxRow; r++) { 
-      for (let c = minCol; c <= maxCol; c++) { 
-        if (!grid[r][c].isRemoved) { 
-          currentSum += grid[r][c].value; 
-          selectedCells.push({ row: r, col: c }); 
-          idsToCheck.push(grid[r][c].id);
-        } 
-      } 
-    }
+    let currentSum = 0; const selectedCells: Position[] = []; const idsToCheck: string[] = [];
+    for (let r = minRow; r <= maxRow; r++) { for (let c = minCol; c <= maxCol; c++) { if (!grid[r][c].isRemoved) { currentSum += grid[r][c].value; selectedCells.push({ row: r, col: c }); idsToCheck.push(grid[r][c].id); } } }
     
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
-      // --- SAI ---
-      playSynthSound('wrong'); // Phát tiếng Buzz
+      playSynthSound('wrong'); 
       setTimeLeft(prev => Math.max(0, prev - 10)); 
       setStreak(0);
       const newErrorSet = new Set(idsToCheck);
@@ -286,10 +268,7 @@ export const Game: React.FC<GameProps> = ({
 
   const processMatch = (cellsToRemove: Position[]) => {
     setIsProcessing(true);
-    
-    // --- ĐÚNG ---
-    playSynthSound('correct'); // Phát tiếng Ting
-
+    playSynthSound('correct'); 
     const newStreak = streak + 1;
     setStreak(newStreak);
     const basePoints = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
@@ -297,12 +276,10 @@ export const Game: React.FC<GameProps> = ({
     const newScore = score + basePoints + streakBonus;
     setScore(newScore);
     setTimeLeft(prev => prev + 1);
-
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
     cellsToRemove.forEach(pos => { newGrid[pos.row][pos.col].isRemoved = true; });
     setGrid(newGrid);
-    
-    if (isMultiplayer && connection) connection.send({ type: 'GRID_UPDATE', payload: { grid: newGrid, score: newScore } } as MultiPlayerMessage);
+    if (isMultiplayer && connection) connection.send({ type: 'GRID_UPDATE', payload: { grid: newGrid, score: newScore, opponentName: myName } } as MultiPlayerMessage);
     setTimeout(() => setIsProcessing(false), 150);
   };
 
@@ -317,39 +294,48 @@ export const Game: React.FC<GameProps> = ({
   })();
   const isValidSum = currentSum === TARGET_SUM;
 
-  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-orange-600 font-bold animate-pulse">Waiting for Host...</div>;
+  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-white font-bold animate-pulse text-xl">Đang đợi chủ phòng...</div>;
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#00cf68] select-none touch-none overflow-hidden">
+    // ĐỔI BACKGROUND SANG MÀU XANH THANH LAM (#06b6d4)
+    <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden">
       
       {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
-        <div className="bg-[#f0fdf4] rounded-2xl border-4 border-[#00b058] shadow-md p-2 flex justify-between items-center relative">
+        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 flex justify-between items-center relative">
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
-             <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00cf68]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
+             <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00bcd4]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
            </div>
 
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
-             <div className="flex flex-col relative">
-               <div className="flex items-center gap-2">
-                 <span className="text-xs font-bold text-[#00cf68] uppercase">You</span>
-                 {streak > 0 && (
-                   <div className="relative group">
+             
+             {/* BÊN MÌNH (YOU) */}
+             <div className="flex flex-col relative w-24 sm:w-32 truncate">
+               <div className="flex items-center relative">
+                 <span className="text-xs font-bold text-[#00838f] uppercase truncate">{myName}</span>
+                 
+                 {/* Streak Icon (Absolute) */}
+                 <div className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 transition-all duration-300 ${streak > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                   <div className="relative group whitespace-nowrap">
                      <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce inline-block shadow-sm">
                        🔥 {streak}
                      </span>
-                     <div className="absolute -bottom-1 left-0 w-full h-[2px] bg-gray-200 rounded-full overflow-hidden">
-                       <div key={streak} className="h-full bg-orange-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
-                     </div>
+                     {streak > 0 && (
+                        <div className="absolute -bottom-1 left-0 w-full h-[2px] bg-gray-200 rounded-full overflow-hidden">
+                          <div key={streak} className="h-full bg-orange-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
+                        </div>
+                     )}
                    </div>
-                 )}
+                 </div>
                </div>
-               <span className="text-2xl font-black text-[#00cf68] leading-none">{score}</span>
+               
+               <span className="text-2xl font-black text-[#006064] leading-none">{score}</span>
              </div>
 
+             {/* ĐỐI THỦ (OPPONENT) */}
              {isMultiplayer && (
-               <div className="flex flex-col items-end border-l pl-4 border-gray-200">
-                  <span className="text-xs font-bold text-gray-500 uppercase">Enemy</span>
+               <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 truncate">
+                  <span className="text-xs font-bold text-gray-500 uppercase truncate">{opponentName}</span>
                   <div className="flex items-baseline gap-2">
                     <span className="text-xl font-bold text-gray-600 leading-none">{opponentScore}</span>
                     <span className={`text-xs font-mono ${opponentTimeLeft < 10 ? 'text-red-500' : 'text-gray-400'}`}>{opponentTimeLeft}s</span>
@@ -375,7 +361,8 @@ export const Game: React.FC<GameProps> = ({
         >
           <div ref={gridRef} className="w-full h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: '2px' }}>
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
-              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-blue-500 bg-blue-500/10'}`}
+              // Đổi màu khung chọn
+              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-cyan-200 bg-cyan-100/30'}`}
                 style={{
                   left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
                   top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
@@ -402,15 +389,14 @@ export const Game: React.FC<GameProps> = ({
       {/* Footer Controls */}
       <div className="shrink-0 h-14 flex items-center justify-between px-6 pb-2 w-full max-w-lg mx-auto">
          {!isMultiplayer ? (
-           <button onClick={() => window.location.reload()} className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider backdrop-blur-sm transition-all active:scale-95">Reset</button>
+           <button onClick={() => window.location.reload()} className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider backdrop-blur-sm transition-all active:scale-95">Chơi Lại</button>
          ) : <div/>}
 
-         {/* Nút bật/tắt nhạc */}
          <button 
            onClick={() => setIsMuted(!isMuted)}
            className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all active:scale-95 ${isMuted ? 'bg-red-500/80 text-white' : 'bg-white/20 text-white border border-white/40'}`}
          >
-           {isMuted ? '🔇 Muted' : '🔊 Sound On'}
+           {isMuted ? '🔇 Tắt Nhạc' : '🔊 Bật Nhạc'}
          </button>
       </div>
       <style>{`@keyframes streak-countdown { from { width: 100%; } to { width: 0%; } }`}</style>

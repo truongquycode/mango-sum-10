@@ -7,6 +7,9 @@ import { GameOverScreen } from './components/GameOverScreen';
 import { LobbyScreen } from './components/LobbyScreen';
 import Peer, { DataConnection } from 'peerjs';
 
+// Prefix để đảm bảo ID không trùng với app khác trên server công cộng
+const ID_PREFIX = 'mango-v1-vn-'; 
+
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [finalScore, setFinalScore] = useState(0);
@@ -15,25 +18,31 @@ export default function App() {
   // Multiplayer State
   const [peer, setPeer] = useState<Peer | null>(null);
   const [peerId, setPeerId] = useState<string | null>(null);
+  const [displayId, setDisplayId] = useState<string | null>(null); // Mã 4 số hiển thị
+  
   const [conn, setConn] = useState<DataConnection | null>(null);
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Trạng thái cho việc Restart đồng bộ
+  // Tên người chơi
+  const [myName, setMyName] = useState("Bạn");
+  const [opponentName, setOpponentName] = useState("Đối thủ");
+
+  // Trạng thái Restart
   const [isMeReady, setIsMeReady] = useState(false);
   const [isOpponentReady, setIsOpponentReady] = useState(false);
-  
   const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
-    if (saved) {
-      setHighScore(parseInt(saved, 10));
-    }
+    if (saved) setHighScore(parseInt(saved, 10));
+    
+    const savedName = localStorage.getItem('mango-player-name');
+    if (savedName) setMyName(savedName);
   }, []);
 
-  // Logic kiểm tra cả 2 đã sẵn sàng chưa để start game lại
+  // Đồng bộ Restart game
   useEffect(() => {
     if (isMultiplayer && gameState === GameState.GAME_OVER) {
       if (isMeReady && isOpponentReady) {
@@ -46,40 +55,41 @@ export default function App() {
     setGameState(GameState.PLAYING);
     setOpponentScore(0);
     setFinalScore(0);
-    // Reset trạng thái ready
     setIsMeReady(false);
     setIsOpponentReady(false);
   };
 
   // --- PeerJS Logic ---
   
-  // Định nghĩa handleConnection trước để có thể gọi trong initializePeer
   const handleConnection = (connection: DataConnection) => {
     setConn(connection);
     
     connection.on('open', () => {
-      console.log("Connected to", connection.peer);
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
+      
+      // Gửi tên của mình cho đối thủ ngay khi kết nối
+      connection.send({ type: 'START', payload: { name: myName } } as MultiPlayerMessage);
     });
 
     connection.on('data', (data: any) => {
       const msg = data as MultiPlayerMessage;
       
       if (msg.type === 'START') {
+        if (msg.payload?.name) setOpponentName(msg.payload.name);
         setGameState(GameState.PLAYING);
+      } else if (msg.type === 'GRID_UPDATE') {
+        setOpponentScore(msg.payload.score);
+        if (msg.payload.opponentName) setOpponentName(msg.payload.opponentName);
       } else if (msg.type === 'GAME_OVER') {
         setOpponentScore(msg.payload.score);
-      } else if (msg.type === 'RESTART') {
-         // Logic cũ, giữ lại để tương thích nếu cần
       } else if (msg.type === 'READY') {
-        // Đối thủ đã bấm Play Again
         setIsOpponentReady(true);
       }
     });
 
     connection.on('close', () => {
-      alert("Opponent disconnected");
+      alert("Đối thủ đã thoát!");
       setGameState(GameState.MENU);
       setConn(null);
       setIsHost(false);
@@ -88,40 +98,70 @@ export default function App() {
     });
   };
 
+  const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
+
   const initializePeer = () => {
     if (peer) return; 
 
-    const newPeer = new Peer();
+    // Tạo mã 4 số
+    const shortCode = generateRandom4Digit();
+    const fullId = ID_PREFIX + shortCode;
+
+    const newPeer = new Peer(fullId);
 
     newPeer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
+      console.log('My Peer ID:', id);
       setPeerId(id);
+      setDisplayId(shortCode); // Chỉ hiện 4 số cho người chơi
     });
 
     newPeer.on('connection', (connection) => {
-      console.log('Incoming connection from', connection.peer);
       setIsHost(true);
       handleConnection(connection);
     });
 
     newPeer.on('error', (err) => {
-      console.error('Peer error', err);
-      setIsConnecting(false);
-      alert("Connection Error: " + err.type);
+      console.error('Peer error:', err);
+      // Nếu xui xẻo trùng mã, thử lại (rất hiếm)
+      if (err.type === 'unavailable-id') {
+        setPeer(null);
+        setTimeout(initializePeer, 500); 
+      } else {
+        setIsConnecting(false);
+        alert("Lỗi kết nối: " + err.type);
+      }
     });
 
     setPeer(newPeer);
   };
 
-  const connectToPeer = (remotePeerId: string) => {
-    if (!peer) return;
-    setIsConnecting(true);
-    setIsHost(false);
-    const connection = peer.connect(remotePeerId);
-    handleConnection(connection);
+  const connectToPeer = (shortCode: string) => {
+    // Nếu chưa có peer (người join), tạo peer tạm
+    const tempPeer = peer || new Peer();
+    
+    if (!peer) {
+        setPeer(tempPeer);
+        tempPeer.on('open', () => {
+            const fullHostId = ID_PREFIX + shortCode;
+            setIsConnecting(true);
+            setIsHost(false);
+            const connection = tempPeer.connect(fullHostId, {
+                metadata: { name: myName }
+            });
+            handleConnection(connection);
+        });
+    } else {
+        const fullHostId = ID_PREFIX + shortCode;
+        setIsConnecting(true);
+        setIsHost(false);
+        const connection = peer.connect(fullHostId, {
+            metadata: { name: myName }
+        });
+        handleConnection(connection);
+    }
   };
 
-  // --- Game Flow Handlers ---
+  // --- Handlers ---
 
   const handleStartSolo = () => {
     setIsMultiplayer(false);
@@ -136,8 +176,8 @@ export default function App() {
     initializePeer();
   };
 
-  const handleJoinGame = (hostId: string) => {
-    connectToPeer(hostId);
+  const handleJoinGame = (hostCode: string) => {
+    connectToPeer(hostCode);
   };
 
   const handleGameOver = (score: number) => {
@@ -157,11 +197,9 @@ export default function App() {
 
   const handleRestart = () => {
     if (isMultiplayer && conn) {
-      // Thay vì start ngay, ta gửi tín hiệu READY
       setIsMeReady(true);
       conn.send({ type: 'READY' } as MultiPlayerMessage);
     } else {
-      // Chế độ Solo thì start luôn
       setGameState(GameState.PLAYING);
     }
   };
@@ -174,10 +212,22 @@ export default function App() {
       conn.close();
       setConn(null);
     }
+    if (peer) {
+        peer.destroy();
+        setPeer(null);
+        setPeerId(null);
+        setDisplayId(null);
+    }
   };
 
+  const handleUpdateName = (name: string) => {
+      setMyName(name);
+      localStorage.setItem('mango-player-name', name);
+  }
+
   return (
-    <div className="h-[100dvh] w-full relative overflow-hidden bg-amber-50">
+    // Đổi background thành màu Xanh Thanh Lam nhạt
+    <div className="h-[100dvh] w-full relative overflow-hidden bg-cyan-50">
       {gameState === GameState.MENU && (
         <StartScreen 
           onStart={handleStartSolo} 
@@ -188,10 +238,12 @@ export default function App() {
 
       {gameState === GameState.LOBBY && (
         <LobbyScreen 
-          peerId={peerId} 
+          displayId={displayId} 
           onJoin={handleJoinGame} 
           onBack={handleGoHome}
           isConnecting={isConnecting}
+          myName={myName}
+          setMyName={handleUpdateName}
         />
       )}
       
@@ -202,6 +254,8 @@ export default function App() {
           isMultiplayer={isMultiplayer}
           isHost={isHost}
           connection={conn}
+          myName={myName}
+          opponentName={opponentName}
         />
       )}
 
@@ -216,6 +270,8 @@ export default function App() {
              onHome={handleGoHome}
              isMultiplayer={isMultiplayer}
              isWaitingForOpponent={isMultiplayer && isMeReady && !isOpponentReady}
+             myName={myName}
+             opponentName={opponentName}
            />
         </>
       )}

@@ -25,7 +25,6 @@ export interface DragState {
 }
 
 export interface MultiPlayerMessage {
-  // Thêm TIME_UPDATE và READY
   type: 'START' | 'GRID_UPDATE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY';
   payload?: any;
 }
