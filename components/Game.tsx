@@ -16,9 +16,7 @@ interface GameProps {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- ÂM THANH BASE64 ---
-const CORRECT_SFX = "data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAG840OTiOAf840OTiOAflGKZX0/gHRASI/W+D7K7s8v8wD9/D3/L/d/764f9/gH3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9/f3/9";
-
+// --- CÁC HÀM HỖ TRỢ ---
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -165,27 +163,30 @@ export const Game: React.FC<GameProps> = ({
 
   // --- LOGIC GAME & MULTIPLAYER ---
   
-  // Xử lý đếm ngược chuỗi thắng
+  // Xử lý đếm ngược chuỗi thắng (Streak)
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (streak > 0) { timer = setTimeout(() => { setStreak(0); }, 5000); }
+    if (streak > 0) { 
+      timer = setTimeout(() => { 
+        setStreak(0); // Reset chuỗi nếu hết 5s
+      }, 5000); 
+    }
     return () => clearTimeout(timer);
   }, [streak]);
 
   // 1. Gửi Map ban đầu (Chỉ Host làm việc này 1 lần)
   useEffect(() => {
+    // Chỉ gửi khi mình là Host và đã có grid
     if (isMultiplayer && isHost && connection && grid.length > 0) {
       connection.send({ 
-        type: 'GRID_UPDATE', 
+        type: 'SYNC_MAP', // Dùng loại tin nhắn riêng cho việc đồng bộ Map
         payload: { 
-          grid, // Gửi Map ban đầu
-          score, 
-          opponentScore: score, 
-          opponentName: myName 
+          grid, 
+          opponentName: myName // Gửi kèm tên để đối thủ hiển thị
         } 
       } as MultiPlayerMessage);
     }
-  }, []);
+  }, []); // Chỉ chạy 1 lần khi mount
 
   // 2. Lắng nghe dữ liệu từ đối thủ
   useEffect(() => {
@@ -194,25 +195,29 @@ export const Game: React.FC<GameProps> = ({
     const handleData = (data: any) => {
       const msg = data as MultiPlayerMessage;
       
-      if (msg.type === 'GRID_UPDATE') {
-        // QUAN TRỌNG: Chỉ cập nhật Grid nếu mình chưa có Grid (lần đầu vào)
-        // Điều này ngăn việc reset map khi đối thủ chơi
+      if (msg.type === 'SYNC_MAP') {
+        // Nhận Map từ Host (chỉ nhận 1 lần đầu)
         if (msg.payload.grid && grid.length === 0) {
           setGrid(msg.payload.grid);
         }
-        
-        // Luôn cập nhật điểm số
+        if (msg.payload.opponentName) {
+          // Cập nhật tên đối thủ (nếu có logic ở App.tsx rồi thì cái này dự phòng)
+        }
+      } 
+      else if (msg.type === 'UPDATE_SCORE') {
+        // Chỉ cập nhật điểm số, KHÔNG đụng vào Grid
         if (msg.payload.score !== undefined) {
           setOpponentScore(msg.payload.score);
         }
-      } else if (msg.type === 'TIME_UPDATE') {
+      } 
+      else if (msg.type === 'TIME_UPDATE') {
         setOpponentTimeLeft(msg.payload);
       }
     };
     
     connection.on('data', handleData);
     return () => { connection.off('data', handleData); };
-  }, [isMultiplayer, connection, grid.length]); // Thêm grid.length vào dependency
+  }, [isMultiplayer, connection, grid.length]);
 
   useEffect(() => {
     if (timeLeft <= 0) { onGameOver(score); return; }
@@ -279,9 +284,11 @@ export const Game: React.FC<GameProps> = ({
     if (currentSum === TARGET_SUM) {
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
+      // --- XỬ LÝ KHI SAI ---
       playSynthSound('wrong'); 
-      setTimeLeft(prev => Math.max(0, prev - 10)); 
-      setStreak(0);
+      setTimeLeft(prev => Math.max(0, prev - 10)); // Phạt thời gian
+      setStreak(0); // Mất chuỗi
+      
       const newErrorSet = new Set(idsToCheck);
       setErrorCellIds(newErrorSet);
       setTimeout(() => { setErrorCellIds(new Set()); }, 400);
@@ -293,28 +300,28 @@ export const Game: React.FC<GameProps> = ({
     setIsProcessing(true);
     playSynthSound('correct'); 
     
+    // --- TÍNH ĐIỂM VÀ CHUỖI ---
     const newStreak = streak + 1;
     setStreak(newStreak);
+    
     const basePoints = cellsToRemove.length * BASE_SCORE + (cellsToRemove.length > 2 ? cellsToRemove.length * 5 : 0);
     const streakBonus = newStreak * 10;
     const newScore = score + basePoints + streakBonus;
-    setScore(newScore);
-    setTimeLeft(prev => prev + 1);
     
-    // Cập nhật Grid cục bộ
+    setScore(newScore);
+    setTimeLeft(prev => prev + 1); // Thưởng thời gian ít thôi (1s)
+    
+    // Cập nhật Grid CỤC BỘ (Của riêng mình)
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
     cellsToRemove.forEach(pos => { newGrid[pos.row][pos.col].isRemoved = true; });
     setGrid(newGrid);
     
-    // SỬA LỖI: Chỉ gửi ĐIỂM SỐ cho đối thủ, KHÔNG gửi Grid
-    // Điều này ngăn chặn việc reset map của đối thủ
+    // --- GỬI ĐIỂM CHO ĐỐI THỦ (QUAN TRỌNG: KHÔNG GỬI GRID) ---
     if (isMultiplayer && connection) {
       connection.send({ 
-        type: 'GRID_UPDATE', 
+        type: 'UPDATE_SCORE', // Dùng loại tin nhắn chỉ cập nhật điểm
         payload: { 
-          // Không gửi 'grid' ở đây nữa để tránh ghi đè map của đối thủ
-          score: newScore, 
-          opponentName: myName 
+          score: newScore 
         } 
       } as MultiPlayerMessage);
     }
@@ -333,7 +340,7 @@ export const Game: React.FC<GameProps> = ({
   })();
   const isValidSum = currentSum === TARGET_SUM;
 
-  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-white font-bold animate-pulse text-xl">Đang đợi chủ phòng...</div>;
+  if (grid.length === 0) return <div className="flex items-center justify-center h-full text-white font-bold animate-pulse text-xl">Đang tải bản đồ...</div>;
 
   return (
     <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden">
@@ -347,12 +354,12 @@ export const Game: React.FC<GameProps> = ({
 
            <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
              
-             {/* BÊN MÌNH (YOU) */}
+             {/* BÊN MÌNH */}
              <div className="flex flex-col relative w-24 sm:w-32 truncate">
                <div className="flex items-center relative">
                  <span className="text-xs font-bold text-[#00838f] uppercase truncate">{myName}</span>
                  
-                 {/* Streak Icon (Absolute) */}
+                 {/* Streak Icon */}
                  <div className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 transition-all duration-300 ${streak > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
                    <div className="relative group whitespace-nowrap">
                      <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce inline-block shadow-sm">
@@ -370,7 +377,7 @@ export const Game: React.FC<GameProps> = ({
                <span className="text-2xl font-black text-[#006064] leading-none">{score}</span>
              </div>
 
-             {/* ĐỐI THỦ (OPPONENT) */}
+             {/* ĐỐI THỦ */}
              {isMultiplayer && (
                <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 truncate">
                   <span className="text-xs font-bold text-gray-500 uppercase truncate">{opponentName}</span>

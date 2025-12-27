@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GameState, MultiPlayerMessage } from './types';
 import { StartScreen } from './components/StartScreen';
 import { Game } from './components/Game';
@@ -7,7 +7,7 @@ import { GameOverScreen } from './components/GameOverScreen';
 import { LobbyScreen } from './components/LobbyScreen';
 import Peer, { DataConnection } from 'peerjs';
 
-// Prefix để đảm bảo ID không trùng với app khác trên server công cộng
+// Prefix để tránh trùng ID với app khác trên server công cộng
 const ID_PREFIX = 'mango-v1-vn-'; 
 
 export default function App() {
@@ -17,7 +17,6 @@ export default function App() {
 
   // Multiplayer State
   const [peer, setPeer] = useState<Peer | null>(null);
-  const [peerId, setPeerId] = useState<string | null>(null);
   const [displayId, setDisplayId] = useState<string | null>(null); // Mã 4 số hiển thị
   
   const [conn, setConn] = useState<DataConnection | null>(null);
@@ -33,6 +32,9 @@ export default function App() {
   const [isMeReady, setIsMeReady] = useState(false);
   const [isOpponentReady, setIsOpponentReady] = useState(false);
   const [isHost, setIsHost] = useState(false);
+
+  // Dùng Ref để giữ giá trị peer tránh re-render loop
+  const peerInstance = useRef<Peer | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
@@ -61,14 +63,15 @@ export default function App() {
 
   // --- PeerJS Logic ---
   
-  const handleConnection = (connection: DataConnection) => {
+  const setupConnectionListeners = (connection: DataConnection) => {
     setConn(connection);
     
     connection.on('open', () => {
+      console.log("Connected to peer:", connection.peer);
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
       
-      // Gửi tên của mình cho đối thủ ngay khi kết nối
+      // Gửi tên của mình cho đối thủ ngay khi kết nối mở
       connection.send({ type: 'START', payload: { name: myName } } as MultiPlayerMessage);
     });
 
@@ -77,9 +80,12 @@ export default function App() {
       
       if (msg.type === 'START') {
         if (msg.payload?.name) setOpponentName(msg.payload.name);
-        setGameState(GameState.PLAYING);
-      } else if (msg.type === 'GRID_UPDATE') {
-        setOpponentScore(msg.payload.score);
+        // Không setGameState ở đây nữa vì đã set ở 'open'
+      } else if (msg.type === 'UPDATE_SCORE') {
+        // Cập nhật điểm realtime
+        if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
+      } else if (msg.type === 'SYNC_MAP') {
+        // Nhận map (xử lý trong Game component, ở đây có thể cập nhật tên nếu có)
         if (msg.payload.opponentName) setOpponentName(msg.payload.opponentName);
       } else if (msg.type === 'GAME_OVER') {
         setOpponentScore(msg.payload.score);
@@ -89,58 +95,61 @@ export default function App() {
     });
 
     connection.on('close', () => {
-      alert("Đối thủ đã thoát!");
-      setGameState(GameState.MENU);
-      setConn(null);
-      setIsHost(false);
-      setIsMeReady(false);
-      setIsOpponentReady(false);
+      alert("Đối thủ đã ngắt kết nối!");
+      handleGoHome();
+    });
+
+    connection.on('error', (err) => {
+        console.error("Connection Error:", err);
+        alert("Lỗi kết nối: " + err.type);
+        handleGoHome();
     });
   };
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
   const initializePeer = () => {
-    if (peer) return; 
+    if (peerInstance.current) return; // Đã có peer rồi thì thôi
 
-    // Tạo mã 4 số
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
     const newPeer = new Peer(fullId);
+    peerInstance.current = newPeer;
 
     newPeer.on('open', (id) => {
       console.log('My Peer ID:', id);
-      setPeerId(id);
-      setDisplayId(shortCode); // Chỉ hiện 4 số cho người chơi
+      setPeer(newPeer); // Cập nhật state để UI render
+      setDisplayId(shortCode); // Chỉ hiện 4 số
     });
 
     newPeer.on('connection', (connection) => {
+      console.log("Incoming connection...");
       setIsHost(true);
-      handleConnection(connection);
+      setupConnectionListeners(connection);
     });
 
     newPeer.on('error', (err) => {
       console.error('Peer error:', err);
-      // Nếu xui xẻo trùng mã, thử lại (rất hiếm)
       if (err.type === 'unavailable-id') {
+        // Trùng ID, thử lại
+        peerInstance.current = null;
         setPeer(null);
         setTimeout(initializePeer, 500); 
       } else {
         setIsConnecting(false);
-        alert("Lỗi kết nối: " + err.type);
+        alert("Lỗi máy chủ: " + err.type);
       }
     });
-
-    setPeer(newPeer);
   };
 
   const connectToPeer = (shortCode: string) => {
     // Nếu chưa có peer (người join), tạo peer tạm
-    const tempPeer = peer || new Peer();
-    
-    if (!peer) {
+    if (!peerInstance.current) {
+        const tempPeer = new Peer();
+        peerInstance.current = tempPeer;
         setPeer(tempPeer);
+
         tempPeer.on('open', () => {
             const fullHostId = ID_PREFIX + shortCode;
             setIsConnecting(true);
@@ -148,16 +157,23 @@ export default function App() {
             const connection = tempPeer.connect(fullHostId, {
                 metadata: { name: myName }
             });
-            handleConnection(connection);
+            setupConnectionListeners(connection);
+        });
+        
+        tempPeer.on('error', (err) => {
+            console.error("Peer error on join:", err);
+            setIsConnecting(false);
+            alert("Không thể kết nối tới máy chủ.");
         });
     } else {
+        // Đã có peer (hiếm khi xảy ra ở flow này, nhưng cứ xử lý)
         const fullHostId = ID_PREFIX + shortCode;
         setIsConnecting(true);
         setIsHost(false);
-        const connection = peer.connect(fullHostId, {
+        const connection = peerInstance.current.connect(fullHostId, {
             metadata: { name: myName }
         });
-        handleConnection(connection);
+        setupConnectionListeners(connection);
     }
   };
 
@@ -177,6 +193,10 @@ export default function App() {
   };
 
   const handleJoinGame = (hostCode: string) => {
+    if (!hostCode || hostCode.length !== 4) {
+        alert("Vui lòng nhập đúng mã 4 số!");
+        return;
+    }
     connectToPeer(hostCode);
   };
 
@@ -208,14 +228,20 @@ export default function App() {
     setGameState(GameState.MENU);
     setIsMeReady(false);
     setIsOpponentReady(false);
+    setOpponentScore(0);
+    setFinalScore(0);
+    setIsConnecting(false);
+    
     if (conn) {
       conn.close();
       setConn(null);
     }
-    if (peer) {
-        peer.destroy();
+    
+    // Hủy peer cũ hoàn toàn để tạo ID mới cho lần chơi sau
+    if (peerInstance.current) {
+        peerInstance.current.destroy();
+        peerInstance.current = null;
         setPeer(null);
-        setPeerId(null);
         setDisplayId(null);
     }
   };
@@ -226,7 +252,6 @@ export default function App() {
   }
 
   return (
-    // Đổi background thành màu Xanh Thanh Lam nhạt
     <div className="h-[100dvh] w-full relative overflow-hidden bg-cyan-50">
       {gameState === GameState.MENU && (
         <StartScreen 
@@ -249,7 +274,8 @@ export default function App() {
       
       {gameState === GameState.PLAYING && (
         <Game 
-          key={isMultiplayer ? 'multi' + Date.now() : 'solo' + Date.now()}
+          // Thêm key để force re-mount khi restart, đảm bảo state sạch sẽ
+          key={isMultiplayer ? 'multi-' + (conn?.connectionId || Date.now()) : 'solo-' + Date.now()}
           onGameOver={handleGameOver} 
           isMultiplayer={isMultiplayer}
           isHost={isHost}
