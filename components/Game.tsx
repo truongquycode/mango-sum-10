@@ -162,7 +162,8 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted]);
 
-  const playSynthSound = useCallback((type: 'correct' | 'wrong' | 'powerup' | 'debuff' | 'shuffle' | 'emoji') => {
+  // --- HỆ THỐNG ÂM THANH (Synth) ---
+  const playSynthSound = useCallback((type: string) => {
     if (isMuted || !audioContextRef.current) return;
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
 
@@ -172,56 +173,113 @@ export const Game: React.FC<GameProps> = ({
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    if (type === 'correct') {
-      osc.type = 'sine';
-      const pitch = 800 + (streak * 50); 
-      osc.frequency.setValueAtTime(pitch, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(pitch + 400, ctx.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    } else if (type === 'wrong') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    } else if (type === 'powerup') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
-      osc.frequency.linearRampToValueAtTime(1800, ctx.currentTime + 0.2);
-      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-    } else if (type === 'debuff') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(200, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.4);
-      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-    } else if (type === 'shuffle') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(300, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.2);
-      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    } else if (type === 'emoji') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
+    const currTime = ctx.currentTime;
+
+    switch (type) {
+        case 'correct':
+            osc.type = 'sine';
+            const pitch = 800 + (streak * 50); 
+            osc.frequency.setValueAtTime(pitch, currTime);
+            osc.frequency.exponentialRampToValueAtTime(pitch + 400, currTime + 0.1);
+            gainNode.gain.setValueAtTime(0.3, currTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.3);
+            osc.start();
+            osc.stop(currTime + 0.3);
+            break;
+        case 'wrong':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, currTime);
+            osc.frequency.linearRampToValueAtTime(100, currTime + 0.3);
+            gainNode.gain.setValueAtTime(0.3, currTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.3);
+            osc.start();
+            osc.stop(currTime + 0.3);
+            break;
+        case 'powerup':
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600, currTime);
+            osc.frequency.linearRampToValueAtTime(1200, currTime + 0.1);
+            gainNode.gain.setValueAtTime(0.2, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.4);
+            osc.start();
+            osc.stop(currTime + 0.4);
+            break;
+        case 'shuffle':
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, currTime);
+            osc.frequency.linearRampToValueAtTime(800, currTime + 0.2);
+            gainNode.gain.setValueAtTime(0.2, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
+            osc.start();
+            osc.stop(currTime + 0.5);
+            break;
+        case 'emoji': // Âm thanh khi gửi/nhận icon
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, currTime);
+            osc.frequency.exponentialRampToValueAtTime(600, currTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.2);
+            osc.start();
+            osc.stop(currTime + 0.2);
+            break;
+        case 'pop': // Âm thanh mở menu
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, currTime);
+            gainNode.gain.setValueAtTime(0.1, currTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.1);
+            osc.start();
+            osc.stop(currTime + 0.1);
+            break;
+        
+        // --- ÂM THANH VẬT PHẨM ---
+        case 'BOMB':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, currTime);
+            osc.frequency.exponentialRampToValueAtTime(10, currTime + 0.5);
+            gainNode.gain.setValueAtTime(0.5, currTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.5);
+            osc.start();
+            osc.stop(currTime + 0.5);
+            break;
+        case 'MAGIC':
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, currTime);
+            osc.frequency.linearRampToValueAtTime(1500, currTime + 0.3);
+            gainNode.gain.setValueAtTime(0.3, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
+            osc.start();
+            osc.stop(currTime + 0.5);
+            break;
+        case 'FREEZE':
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1200, currTime);
+            osc.frequency.linearRampToValueAtTime(1200, currTime + 0.5);
+            gainNode.gain.setValueAtTime(0.2, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
+            osc.start();
+            osc.stop(currTime + 0.5);
+            break;
+        case 'SPEED_UP':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, currTime);
+            osc.frequency.linearRampToValueAtTime(600, currTime + 0.4);
+            gainNode.gain.setValueAtTime(0.2, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.4);
+            osc.start();
+            osc.stop(currTime + 0.4);
+            break;
+        case 'STEAL':
+        case 'DEBUFF_SCORE':
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(400, currTime);
+            osc.frequency.exponentialRampToValueAtTime(100, currTime + 0.3);
+            gainNode.gain.setValueAtTime(0.2, currTime);
+            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.3);
+            osc.start();
+            osc.stop(currTime + 0.3);
+            break;
+        default:
+            break;
     }
   }, [isMuted, streak]);
 
@@ -315,14 +373,14 @@ export const Game: React.FC<GameProps> = ({
       }
       
       if (msg.type === 'SEND_EMOJI') {
-          playSynthSound('emoji');
+          playSynthSound('emoji'); // Nghe thấy tiếng khi nhận icon
           setIncomingEmoji({ emoji: msg.payload.emoji, id: Date.now() });
           setTimeout(() => setIncomingEmoji(null), 3000);
       }
 
       if (msg.type === 'ITEM_ATTACK') {
-        const { effect, amount } = msg.payload;
-        playSynthSound('debuff');
+        const { effect } = msg.payload;
+        playSynthSound(effect); // Phát âm thanh skill tương ứng
         if (effect === 'BOMB') {
           setTimeLeft(prev => Math.max(0, prev - 10));
           setEffectMessage({ text: "Dính Bom! -10s", icon: "💣", subText: "Đau quá!" });
@@ -378,6 +436,8 @@ export const Game: React.FC<GameProps> = ({
 
   const handleUseItem = (item: GameItem) => {
     setInventory(prev => prev.filter(i => i.id !== item.id));
+    playSynthSound(item.type); // Phát âm thanh khi dùng item
+
     switch (item.type) {
       case 'MAGIC':
         setMagicActive(true);
@@ -410,6 +470,7 @@ export const Game: React.FC<GameProps> = ({
   };
 
   const sendEmoji = (emoji: string) => {
+      playSynthSound('emoji'); // Phát âm thanh cho người gửi
       setShowEmojiPicker(false);
       connection?.send({ type: 'SEND_EMOJI', payload: { emoji } } as MultiPlayerMessage);
   };
@@ -439,7 +500,6 @@ export const Game: React.FC<GameProps> = ({
     return () => clearTimeout(timer);
   }, [streak]);
 
-  // Game Logic Handlers
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -497,8 +557,15 @@ export const Game: React.FC<GameProps> = ({
       } 
     }
     
-    if ((magicActive && selectedCells.length > 0) || currentSum === TARGET_SUM) {
-      if (magicActive) { setMagicActive(false); setEffectMessage(null); }
+    // Logic Magic cũ: Quá bá đạo
+    // Logic mới: Giới hạn <= 4 ô (Hình vuông 2x2 hoặc hàng 4)
+    const isMagicValid = magicActive && selectedCells.length > 0 && selectedCells.length <= 4;
+
+    if (isMagicValid || currentSum === TARGET_SUM) {
+      if (magicActive && isMagicValid) { 
+          setMagicActive(false); 
+          setEffectMessage(null); 
+      }
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
       playSynthSound('wrong'); 
@@ -530,7 +597,6 @@ export const Game: React.FC<GameProps> = ({
     setTimeout(() => setBonusText(null), 1000);
 
     if (isMultiplayer && inventory.length < 3 && Math.random() < 0.3) {
-      // LOẠI TRỪ ITEM ĐÃ CÓ
       const currentItemTypes = inventory.map(i => i.type);
       const newItemType = getRandomItemType(currentItemTypes);
       
@@ -539,7 +605,6 @@ export const Game: React.FC<GameProps> = ({
         setInventory(prev => [...prev, newItem]);
         playSynthSound('powerup');
         
-        // HIỂN THỊ THÔNG BÁO VẬT PHẨM (NẰM DƯỚI)
         const itemConfig = ITEM_CONFIG[newItemType];
         setEffectMessage({
           text: `Nhận: ${itemConfig.name}`,
@@ -561,6 +626,7 @@ export const Game: React.FC<GameProps> = ({
     setTimeout(() => setIsProcessing(false), 150);
   };
 
+  // ... (currentSum, isValidSum...)
   const currentSum = (() => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -577,7 +643,7 @@ export const Game: React.FC<GameProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden relative">
       
-      {/* SHUFFLE MESSAGE (z-[60] để cao hơn HUD) */}
+      {/* SHUFFLE MESSAGE */}
       {shuffleMessage && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white px-6 py-4 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce border-4 border-cyan-500">
@@ -587,19 +653,19 @@ export const Game: React.FC<GameProps> = ({
         </div>
       )}
 
-      {/* SCREEN EFFECTS (z-40) */}
+      {/* SCREEN EFFECTS */}
       {isFrozen && <div className="absolute inset-0 bg-blue-500/20 pointer-events-none z-40 animate-pulse border-4 border-blue-300"></div>}
       {speedMultiplier > 1 && <div className="absolute inset-0 bg-red-500/10 pointer-events-none z-40 border-4 border-red-400"></div>}
       {magicActive && <div className="absolute inset-0 pointer-events-none z-40 border-8 border-purple-400 opacity-50 animate-pulse"></div>}
 
-      {/* INCOMING EMOJI ANIMATION (z-[60]) */}
+      {/* INCOMING EMOJI ANIMATION */}
       {incomingEmoji && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-9xl animate-emoji-pop z-[60] pointer-events-none drop-shadow-2xl">
               {incomingEmoji.emoji}
           </div>
       )}
 
-      {/* HUD (z-50) */}
+      {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-50">
         <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 relative min-h-[80px] flex items-center">
            
@@ -615,21 +681,14 @@ export const Game: React.FC<GameProps> = ({
                  <div className="text-3xl filter drop-shadow-md">{myAvatar}</div>
                  <span className="text-xs font-bold text-[#00838f] uppercase truncate w-full">{myName}</span>
                  
-                 {/* THANH STREAK (left-12, top-full) */}
+                 {/* THANH STREAK */}
                  {streak > 0 && (
                    <div className="absolute left-12 top-full mt-2 flex flex-col items-center animate-bounce z-50">
                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap border-2 border-white">
                        🔥 x{streak}
                      </span>
                      <div className="w-10 h-1 bg-gray-300 mt-1 rounded-full overflow-hidden shadow-inner border border-white/50">
-                        <div 
-                          key={streak} 
-                          className="h-full bg-orange-500" 
-                          style={{ 
-                            width: '100%', 
-                            animation: 'streak-countdown 5s linear forwards' 
-                          }} 
-                        />
+                        <div key={streak} className="h-full bg-orange-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
                      </div>
                    </div>
                  )}
@@ -648,7 +707,7 @@ export const Game: React.FC<GameProps> = ({
              {isMultiplayer && (
                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center z-50 pointer-events-auto">
                   
-                  {/* 3 Ô VẬT PHẨM */}
+                  {/* --- 3 Ô VẬT PHẨM --- */}
                   <div className="flex gap-1.5">
                     {[0, 1, 2].map(index => {
                       const item = inventory[index];
@@ -664,7 +723,6 @@ export const Game: React.FC<GameProps> = ({
                             {item ? ITEM_CONFIG[item.type].icon : ''}
                           </button>
                           
-                          {/* Timer circle */}
                           {item && (
                              <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
                                <circle cx="18" cy="18" r="16" stroke="white" strokeWidth="2" fill="none" strokeDasharray="100" strokeDashoffset={100 * ((Date.now() - item.receivedAt)/60000)} className="opacity-40" />
@@ -675,7 +733,7 @@ export const Game: React.FC<GameProps> = ({
                     })}
                   </div>
 
-                  {/* THÔNG BÁO VẬT PHẨM (ĐÃ CHUYỂN XUỐNG DƯỚI: top-full mt-2) */}
+                  {/* THÔNG BÁO VẬT PHẨM (NẰM DƯỚI) */}
                   {effectMessage && (
                     <div className="absolute top-full mt-2 bg-black/80 text-white px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20 animate-fade-in flex items-center gap-2 min-w-max z-50">
                        <span className="text-xl">{effectMessage.icon}</span>
@@ -691,14 +749,16 @@ export const Game: React.FC<GameProps> = ({
 
              {/* RIGHT: OPPONENT */}
              {isMultiplayer && (
-               // QUAN TRỌNG: Removed 'truncate' from container, added relative overflow-visible
                <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 relative overflow-visible">
                   <div className="flex items-center justify-end gap-2">
                       <span className="text-xs font-bold text-gray-500 uppercase truncate max-w-[80px]">{opponentName}</span>
                       
-                      {/* OPPONENT AVATAR */}
+                      {/* OPPONENT AVATAR (Có âm thanh khi bấm mở) */}
                       <button 
-                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        onClick={() => {
+                            setShowEmojiPicker(!showEmojiPicker);
+                            playSynthSound('pop'); // Sound effect
+                        }}
                         className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none"
                       >
                           {opponentAvatar}
@@ -711,7 +771,7 @@ export const Game: React.FC<GameProps> = ({
                                   <button 
                                     key={emoji}
                                     onClick={() => sendEmoji(emoji)}
-                                    className="text-2xl hover:bg-gray-100 p-1 rounded transition-colors"
+                                    className="text-2xl hover:bg-gray-100 p-1 rounded transition-colors active:scale-95"
                                   >
                                       {emoji}
                                   </button>

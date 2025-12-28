@@ -1,7 +1,7 @@
 // components/LobbyScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // Import thêm useRef, useEffect
 import { Button } from './UI/Button';
-import { AVATARS } from '../constants'; // Import danh sách avatar
+import { AVATARS } from '../constants';
 
 interface LobbyScreenProps {
   displayId: string | null;
@@ -21,6 +21,40 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   const [remoteCode, setRemoteCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [step, setStep] = useState<'NAME' | 'LOBBY'>(myName && myName !== "Bạn" ? 'LOBBY' : 'NAME');
+
+  // --- AUDIO LOGIC ---
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    // Khởi tạo AudioContext
+    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    return () => {
+        if (audioContextRef.current) audioContextRef.current.close();
+    };
+  }, []);
+
+  const playSelectSound = () => {
+    if (!audioContextRef.current) return;
+    if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
+
+    const ctx = audioContextRef.current;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Âm thanh "bloop" nhẹ nhàng
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  };
 
   const handleCopy = () => {
     if (displayId) {
@@ -56,7 +90,10 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 {AVATARS.map((av) => (
                     <button 
                         key={av}
-                        onClick={() => setMyAvatar(av)}
+                        onClick={() => {
+                            setMyAvatar(av);
+                            playSelectSound(); // Phát âm thanh khi chọn
+                        }}
                         className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all ${myAvatar === av ? 'bg-cyan-500 shadow-lg scale-110 border-2 border-white' : 'bg-white hover:bg-gray-200'}`}
                     >
                         {av}
@@ -69,7 +106,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   <div className="text-6xl mb-2 animate-bounce">{myAvatar}</div>
                   <input 
                     type="text" 
-                    placeholder="Tên của bạn..." 
+                    placeholder="Tên của em..." 
                     value={myName}
                     onChange={(e) => setMyName(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
@@ -79,11 +116,11 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   />
               </div>
               
-              <Button onClick={handleConfirmName} disabled={!myName.trim()} className="w-full">
+              <Button onClick={handleConfirmName} disabled={!myName.trim()} variant="secondary" className="w-full">
                 Tiếp Tục
               </Button>
               
-              <Button onClick={onBack} variant="secondary" className="w-full">
+              <Button onClick={onBack}  className="w-full">
                 Quay Lại
               </Button>
             </div>
@@ -109,7 +146,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
 
             {/* Mã Phòng */}
             <div className="bg-cyan-50 p-4 rounded-xl border border-cyan-200 text-center">
-              <p className="text-xs font-bold text-cyan-500 uppercase tracking-wide mb-2">Mã Phòng Của Bạn</p>
+              <p className="text-xs font-bold text-cyan-500 uppercase tracking-wide mb-2">Mã Phòng Của Em</p>
               {displayId ? (
                 <div 
                   onClick={handleCopy}
@@ -145,12 +182,13 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 onClick={() => onJoin(remoteCode)} 
                 disabled={remoteCode.length < 4 || isConnecting}
                 className="w-full"
+                variant="secondary"
               >
                 {isConnecting ? 'Đang kết nối...' : 'Vào Phòng Ngay'}
               </Button>
             </div>
 
-            <Button onClick={onBack} variant="secondary" className="w-full mt-4">
+            <Button onClick={onBack}  className="w-full mt-4">
               Quay Lại
             </Button>
           </>
