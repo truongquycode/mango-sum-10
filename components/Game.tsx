@@ -162,8 +162,8 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted]);
 
-  // --- HỆ THỐNG ÂM THANH (Synth) ---
-  const playSynthSound = useCallback((type: string) => {
+  // --- HỆ THỐNG ÂM THANH NÂNG CAO (Synth) ---
+  const playSynthSound = useCallback((type: string, variant?: string) => {
     if (isMuted || !audioContextRef.current) return;
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
 
@@ -176,6 +176,7 @@ export const Game: React.FC<GameProps> = ({
     const currTime = ctx.currentTime;
 
     switch (type) {
+        // --- GAMEPLAY SOUNDS ---
         case 'correct':
             osc.type = 'sine';
             const pitch = 800 + (streak * 50); 
@@ -183,8 +184,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.exponentialRampToValueAtTime(pitch + 400, currTime + 0.1);
             gainNode.gain.setValueAtTime(0.3, currTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.3);
-            osc.start();
-            osc.stop(currTime + 0.3);
+            osc.start(); osc.stop(currTime + 0.3);
             break;
         case 'wrong':
             osc.type = 'sawtooth';
@@ -192,8 +192,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(100, currTime + 0.3);
             gainNode.gain.setValueAtTime(0.3, currTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.3);
-            osc.start();
-            osc.stop(currTime + 0.3);
+            osc.start(); osc.stop(currTime + 0.3);
             break;
         case 'powerup':
             osc.type = 'triangle';
@@ -201,8 +200,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(1200, currTime + 0.1);
             gainNode.gain.setValueAtTime(0.2, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.4);
-            osc.start();
-            osc.stop(currTime + 0.4);
+            osc.start(); osc.stop(currTime + 0.4);
             break;
         case 'shuffle':
             osc.type = 'triangle';
@@ -210,34 +208,61 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(800, currTime + 0.2);
             gainNode.gain.setValueAtTime(0.2, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
-            osc.start();
-            osc.stop(currTime + 0.5);
+            osc.start(); osc.stop(currTime + 0.5);
             break;
-        case 'emoji': 
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(400, currTime);
-            osc.frequency.exponentialRampToValueAtTime(600, currTime + 0.1);
-            gainNode.gain.setValueAtTime(0.1, currTime);
-            gainNode.gain.linearRampToValueAtTime(0, currTime + 0.2);
-            osc.start();
-            osc.stop(currTime + 0.2);
-            break;
-        case 'pop': 
+        case 'pop': // Mở menu
             osc.type = 'sine';
             osc.frequency.setValueAtTime(300, currTime);
             gainNode.gain.setValueAtTime(0.1, currTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.1);
-            osc.start();
-            osc.stop(currTime + 0.1);
+            osc.start(); osc.stop(currTime + 0.1);
             break;
+
+        // --- EMOJI SOUNDS (ĐÃ SỬA LOGIC) ---
+        case 'emoji': 
+            // 1. Nhóm Cục Súc/Sợ Hãi: 😡 👎 💩 😱 -> Tiếng Sawtooth Trầm (Rè rè)
+            if (['😡', '👎', '💩', '😱'].includes(variant || '')) {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, currTime); // Bắt đầu thấp
+                osc.frequency.linearRampToValueAtTime(50, currTime + 0.4); // Xuống cực thấp
+                gainNode.gain.setValueAtTime(0.2, currTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.4);
+            } 
+            // 2. Nhóm Buồn: 😭 -> Tiếng Triangle Trượt Xuống (Huýt sáo buồn)
+            else if (['😭'].includes(variant || '')) {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, currTime);
+                osc.frequency.linearRampToValueAtTime(200, currTime + 0.5);
+                gainNode.gain.setValueAtTime(0.15, currTime);
+                gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
+            } 
+            // 3. Nhóm Chào Hỏi: hello, bye -> Tiếng Square (Điện tử, 8-bit)
+            else if (['>w<', 'hí hí', 'he he'].includes(variant || '')) {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, currTime);
+                osc.frequency.setValueAtTime(600, currTime + 0.1); // Nhảy nốt
+                gainNode.gain.setValueAtTime(0.05, currTime);
+                gainNode.gain.linearRampToValueAtTime(0, currTime + 0.3);
+            }
+            // 4. Nhóm Vui Vẻ (Mặc định): 😂 😍 👍 -> Tiếng Sine Cao (Bloop)
+            else {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, currTime);
+                osc.frequency.exponentialRampToValueAtTime(800, currTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, currTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.3);
+            }
+            osc.start(); osc.stop(currTime + 0.5);
+            break;
+        
+        // --- ITEM EFFECT SOUNDS ---
         case 'BOMB':
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(100, currTime);
             osc.frequency.exponentialRampToValueAtTime(10, currTime + 0.5);
             gainNode.gain.setValueAtTime(0.5, currTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, currTime + 0.5);
-            osc.start();
-            osc.stop(currTime + 0.5);
+            osc.start(); osc.stop(currTime + 0.5);
             break;
         case 'MAGIC':
             osc.type = 'sine';
@@ -245,8 +270,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(1500, currTime + 0.3);
             gainNode.gain.setValueAtTime(0.3, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
-            osc.start();
-            osc.stop(currTime + 0.5);
+            osc.start(); osc.stop(currTime + 0.5);
             break;
         case 'FREEZE':
             osc.type = 'triangle';
@@ -254,8 +278,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(1200, currTime + 0.5);
             gainNode.gain.setValueAtTime(0.2, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.5);
-            osc.start();
-            osc.stop(currTime + 0.5);
+            osc.start(); osc.stop(currTime + 0.5);
             break;
         case 'SPEED_UP':
             osc.type = 'sawtooth';
@@ -263,8 +286,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.linearRampToValueAtTime(600, currTime + 0.4);
             gainNode.gain.setValueAtTime(0.2, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.4);
-            osc.start();
-            osc.stop(currTime + 0.4);
+            osc.start(); osc.stop(currTime + 0.4);
             break;
         case 'STEAL':
         case 'DEBUFF_SCORE':
@@ -273,8 +295,7 @@ export const Game: React.FC<GameProps> = ({
             osc.frequency.exponentialRampToValueAtTime(100, currTime + 0.3);
             gainNode.gain.setValueAtTime(0.2, currTime);
             gainNode.gain.linearRampToValueAtTime(0, currTime + 0.3);
-            osc.start();
-            osc.stop(currTime + 0.3);
+            osc.start(); osc.stop(currTime + 0.3);
             break;
         default:
             break;
@@ -369,14 +390,15 @@ export const Game: React.FC<GameProps> = ({
       }
       
       if (msg.type === 'SEND_EMOJI') {
-          playSynthSound('emoji');
-          setIncomingEmoji({ emoji: msg.payload.emoji, id: Date.now() });
+          const emoji = msg.payload.emoji;
+          playSynthSound('emoji', emoji); // Phát âm thanh emoji
+          setIncomingEmoji({ emoji: emoji, id: Date.now() });
           setTimeout(() => setIncomingEmoji(null), 3000);
       }
 
       if (msg.type === 'ITEM_ATTACK') {
         const { effect } = msg.payload;
-        playSynthSound(effect);
+        playSynthSound(effect); // Phát âm thanh item
         if (effect === 'BOMB') {
           setTimeLeft(prev => Math.max(0, prev - 10));
           setEffectMessage({ text: "Dính Bom! -10s", icon: "💣", subText: "Đau quá!" });
@@ -421,6 +443,7 @@ export const Game: React.FC<GameProps> = ({
     return () => { connection.off('data', handleData); };
   }, [isMultiplayer, connection, grid, score, isHost]);
 
+  // Inventory Clean up
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -431,7 +454,7 @@ export const Game: React.FC<GameProps> = ({
 
   const handleUseItem = (item: GameItem) => {
     setInventory(prev => prev.filter(i => i.id !== item.id));
-    playSynthSound(item.type);
+    playSynthSound(item.type); // Âm thanh dùng item
 
     switch (item.type) {
       case 'MAGIC':
@@ -466,7 +489,7 @@ export const Game: React.FC<GameProps> = ({
 
   const sendEmoji = (emoji: string) => {
       // 1. Play sound
-      playSynthSound('emoji');
+      playSynthSound('emoji', emoji);
       
       // 2. Hide picker
       setShowEmojiPicker(false);
