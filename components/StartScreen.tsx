@@ -5,10 +5,11 @@ import { Button } from './UI/Button';
 interface StartScreenProps {
   onStart: () => void;
   onMultiplayer: () => void;
+  onOpenHistory: () => void; // Thêm prop này
   highScore: number;
 }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer, highScore }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer, onOpenHistory, highScore }) => {
   const [showTutorial, setShowTutorial] = useState(false);
 
   return (
@@ -21,9 +22,12 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer
       {!showTutorial ? (
         <div className="z-10 text-center space-y-6 bg-white/80 backdrop-blur-sm p-10 rounded-3xl shadow-2xl border-4 border-cyan-200 max-w-md w-full animate-fade-in">
           <div>
-            <h1 className="text-5xl font-black text-cyan-600 drop-shadow-sm mb-2">
-              Thanh Lam<br/>Cộng lại 10 :33
+            {/* TIÊU ĐỀ */}
+            <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 drop-shadow-md mb-2 leading-tight tracking-tight transform -rotate-2">
+              Thanh Lam<br/>
+              <span className="text-4xl md:text-5xl text-yellow-500 drop-shadow-none">Cộng lại 10 :33</span>
             </h1>
+            
             <p className="text-gray-600 font-medium">Chơi cùng Thanh Lam là vui nhất</p>
           </div>
 
@@ -33,34 +37,44 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer
           </div>
 
           <div className="space-y-3 pt-2">
-            <Button onClick={onStart}  className="w-full text-xl py-3 mb-5 shadow-cyan-300/50">
+            <Button onClick={onStart} className="w-full text-xl py-3 mb-5 ">
               🎮 Chơi Mụt Mình
             </Button>
-            <Button onClick={onMultiplayer} variant="secondary" className="w-full text-xl py-3 animate-bounce">
+            <Button onClick={onMultiplayer} variant="secondary" className="w-full text-xl py-3 animate-bounce shadow-cyan-300/50">
               ⚔️ Với Thanh Lam
             </Button>
-            <Button 
-              onClick={() => setShowTutorial(true)} 
-              className="w-full text-lg py-2 bg-yellow-400 text-white border-b-4 border-yellow-600 hover:bg-yellow-500 active:border-b-0 active:mt-1"
-            >
-              📖 Hướng Dẫn Noob
-            </Button>
+
+            <div className="space-y-3 pt-0">
+                <Button 
+                  onClick={() => setShowTutorial(true)} 
+                  className="w-full flex-1 text-lg py-2 bg-yellow-400 text-white border-b-4 border-yellow-600 hover:bg-yellow-500 active:border-b-0 active:mt-1"
+                >
+                  📖 Hướng Dẫn
+                </Button>
+                {/* NÚT LỊCH SỬ MỚI */}
+                <Button 
+                  onClick={onOpenHistory} 
+                  className="w-full flex-1 text-lg py-2 !bg-green-400 text-white border-b-4 border-green-600 hover:bg-green-500 active:border-b-0 active:mt-1"
+                >
+                  📜 Lịch Sử
+                </Button>
+            </div>
           </div>
           
-          <p className="text-xs text-gray-400 pt-4">Kéo các ô cho tổng bằng 10 nhá cục dàng 😝</p>
+          {/* <p className="text-xs text-gray-400 pt-4">Kéo các ô cho tổng bằng 10 nhá cục dàng 😝</p> */}
         </div>
       ) : (
         // Tutorial Overlay Modal
         <div className="z-20 bg-white/95 backdrop-blur-md p-6 rounded-3xl shadow-2xl border-4 border-yellow-400 max-w-md w-full max-h-[85vh] overflow-y-auto animate-fade-in relative custom-scrollbar">
-          <button 
+          {/* <button 
             onClick={() => setShowTutorial(false)}
             className="absolute top-4 right-4 text-gray-400 hover:text-red-500 text-2xl font-bold transition-colors w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full"
           >
             ✕
-          </button>
+          </button> */}
           
           <h2 className="text-3xl font-black text-yellow-500 text-center mb-6 uppercase tracking-wide drop-shadow-sm">
-            Để anh dạy nhá 🎓
+             anh dạy nhá 🎓
           </h2>
 
           <div className="space-y-4 text-gray-600">
@@ -115,7 +129,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer
           <div className="mt-6">
             <Button 
               onClick={() => setShowTutorial(false)} 
-              className="w-full py-3 bg-yellow-500 border-b-4 border-yellow-700 hover:bg-yellow-600 active:border-b-0 active:mt-1 shadow-xl shadow-yellow-200"
+              className="w-full flex-1 text-lg py-2 bg-yellow-400 text-white border-b-4 border-yellow-600 hover:bg-yellow-500 active:border-b-0 active:mt-1"
             >
               Hiểu gòi, chít với em 🚀
             </Button>

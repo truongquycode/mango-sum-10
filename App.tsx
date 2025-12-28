@@ -1,10 +1,11 @@
 // App.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, MultiPlayerMessage } from './types';
+import { GameState, MultiPlayerMessage, MatchRecord } from './types'; // Import MatchRecord
 import { StartScreen } from './components/StartScreen';
 import { Game } from './components/Game';
 import { GameOverScreen } from './components/GameOverScreen';
 import { LobbyScreen } from './components/LobbyScreen';
+import { HistoryScreen } from './components/HistoryScreen'; // Import HistoryScreen
 import Peer, { DataConnection } from 'peerjs';
 import { AVATARS } from './constants';
 
@@ -126,7 +127,6 @@ export default function App() {
     });
   };
 
-  // ... (Giữ nguyên phần initializePeer, connectToPeer, handleStartSolo, handleJoinGame, handleGameOver, handleRestart) ...
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
   const initializePeer = () => {
@@ -215,7 +215,8 @@ export default function App() {
     connectToPeer(hostCode);
   };
 
-  const handleGameOver = (score: number) => {
+  // --- CẬP NHẬT: Handle GameOver lưu lịch sử ---
+  const handleGameOver = (score: number, itemsUsedStats: Record<string, number>) => {
     setFinalScore(score);
     if (!isMultiplayer) {
       if (score > highScore) {
@@ -225,9 +226,29 @@ export default function App() {
     }
     setGameState(GameState.GAME_OVER);
     
+    // Gửi điểm cho đối thủ
     if (isMultiplayer && conn) {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
+
+    // --- LƯU LỊCH SỬ ---
+    const newRecord: MatchRecord = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        mode: isMultiplayer ? 'MULTIPLAYER' : 'SOLO',
+        myName: myName,
+        opponentName: isMultiplayer ? opponentName : undefined,
+        myScore: score,
+        opponentScore: isMultiplayer ? opponentScore : undefined,
+        itemsUsed: itemsUsedStats as any
+    };
+
+    const currentHistory = localStorage.getItem('mango-match-history');
+    let history: MatchRecord[] = currentHistory ? JSON.parse(currentHistory) : [];
+    history.push(newRecord);
+    // Giới hạn lưu 20 trận gần nhất để không đầy bộ nhớ
+    if (history.length > 20) history = history.slice(history.length - 20);
+    localStorage.setItem('mango-match-history', JSON.stringify(history));
   };
 
   const handleRestart = () => {
@@ -271,8 +292,14 @@ export default function App() {
         <StartScreen 
           onStart={handleStartSolo} 
           onMultiplayer={handleOpenLobby}
+          onOpenHistory={() => setGameState(GameState.HISTORY)} // Thêm dòng này
           highScore={highScore} 
         />
+      )}
+
+      {/* Màn hình Lịch sử Mới */}
+      {gameState === GameState.HISTORY && (
+          <HistoryScreen onBack={() => setGameState(GameState.MENU)} />
       )}
 
       {gameState === GameState.LOBBY && (

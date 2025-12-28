@@ -7,7 +7,7 @@ import { MangoIcon } from './MangoIcon';
 import { ITEM_CONFIG, REACTION_EMOJIS } from '../constants';
 
 interface GameProps {
-  onGameOver: (score: number) => void;
+  onGameOver: (score: number, itemsUsed: Record<string, number>) => void; // Cập nhật Props
   isMultiplayer?: boolean;
   isHost?: boolean;
   connection?: DataConnection | null;
@@ -114,6 +114,9 @@ export const Game: React.FC<GameProps> = ({
   const [scoreMultiplier, setScoreMultiplier] = useState(1); 
   const [scoreDebuff, setScoreDebuff] = useState(1); 
   
+  // MỚI: State theo dõi thống kê item
+  const [itemsUsedStats, setItemsUsedStats] = useState<Record<string, number>>({});
+
   const [effectMessage, setEffectMessage] = useState<{text: string, icon: string, subText?: string} | null>(null);
   const [shuffleMessage, setShuffleMessage] = useState<string | null>(null);
 
@@ -218,7 +221,7 @@ export const Game: React.FC<GameProps> = ({
             osc.start(); osc.stop(currTime + 0.1);
             break;
 
-        // --- EMOJI SOUNDS (ĐÃ SỬA LOGIC) ---
+        // --- EMOJI SOUNDS ---
         case 'emoji': 
             // 1. Nhóm Cục Súc/Sợ Hãi: 😡 👎 💩 😱 -> Tiếng Sawtooth Trầm (Rè rè)
             if (['😡', '👎', '💩', '😱'].includes(variant || '')) {
@@ -397,7 +400,7 @@ export const Game: React.FC<GameProps> = ({
       }
 
       if (msg.type === 'ITEM_ATTACK') {
-        const { effect } = msg.payload;
+        const { effect, amount } = msg.payload;
         playSynthSound(effect); // Phát âm thanh item
         if (effect === 'BOMB') {
           setTimeLeft(prev => Math.max(0, prev - 10));
@@ -456,6 +459,12 @@ export const Game: React.FC<GameProps> = ({
     setInventory(prev => prev.filter(i => i.id !== item.id));
     playSynthSound(item.type); // Âm thanh dùng item
 
+    // MỚI: Ghi nhận item đã dùng
+    setItemsUsedStats(prev => ({
+        ...prev,
+        [item.type]: (prev[item.type] || 0) + 1
+    }));
+
     switch (item.type) {
       case 'MAGIC':
         setMagicActive(true);
@@ -503,7 +512,11 @@ export const Game: React.FC<GameProps> = ({
   };
 
   useEffect(() => {
-    if (timeLeft <= 0) { onGameOver(score); return; }
+    if (timeLeft <= 0) { 
+        // CẬP NHẬT: Truyền thêm itemsUsedStats
+        onGameOver(score, itemsUsedStats); 
+        return; 
+    }
     const interval = setInterval(() => {
       if (!isFrozen) {
         setTimeLeft((prev) => {
@@ -517,7 +530,7 @@ export const Game: React.FC<GameProps> = ({
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeLeft, onGameOver, isMultiplayer, connection, isFrozen, speedMultiplier]);
+  }, [timeLeft, onGameOver, isMultiplayer, connection, isFrozen, speedMultiplier, itemsUsedStats, score]); // Thêm dependencies itemsUsedStats và score
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -707,7 +720,7 @@ export const Game: React.FC<GameProps> = ({
                <div className="relative">
                  <div className="text-3xl filter drop-shadow-md">{myAvatar}</div>
                  {streak > 0 && (
-                   <div className="absolute right-12 right-full mb-5 flex flex-col items-center animate-bounce z-50">
+                   <div className="absolute right-12 top-full mt-2 flex flex-col items-center animate-bounce z-50">
                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap border-2 border-white">
                        🔥 x{streak}
                      </span>
@@ -734,7 +747,7 @@ export const Game: React.FC<GameProps> = ({
                </div>
              </div>
 
-             {/* CENTER: INVENTORY & NOTIFICATIONS */}
+             {/* CENTER: INVENTORY */}
              {isMultiplayer && (
                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center z-50 pointer-events-auto">
                   <div className="flex gap-1.5">
