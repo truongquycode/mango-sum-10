@@ -213,7 +213,7 @@ export const Game: React.FC<GameProps> = ({
             osc.start();
             osc.stop(currTime + 0.5);
             break;
-        case 'emoji': // Âm thanh khi gửi/nhận icon
+        case 'emoji': 
             osc.type = 'sine';
             osc.frequency.setValueAtTime(400, currTime);
             osc.frequency.exponentialRampToValueAtTime(600, currTime + 0.1);
@@ -222,7 +222,7 @@ export const Game: React.FC<GameProps> = ({
             osc.start();
             osc.stop(currTime + 0.2);
             break;
-        case 'pop': // Âm thanh mở menu
+        case 'pop': 
             osc.type = 'sine';
             osc.frequency.setValueAtTime(300, currTime);
             gainNode.gain.setValueAtTime(0.1, currTime);
@@ -230,8 +230,6 @@ export const Game: React.FC<GameProps> = ({
             osc.start();
             osc.stop(currTime + 0.1);
             break;
-        
-        // --- ÂM THANH VẬT PHẨM ---
         case 'BOMB':
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(100, currTime);
@@ -283,7 +281,7 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted, streak]);
 
-  // --- LOGIC ---
+  // --- LOGIC GAME ---
   const hasValidMoves = (currentGrid: MangoCell[][]): boolean => {
     for (let r1 = 0; r1 < GRID_ROWS; r1++) {
       for (let c1 = 0; c1 < GRID_COLS; c1++) {
@@ -324,7 +322,6 @@ export const Game: React.FC<GameProps> = ({
 
       if (remainingSum < TARGET_SUM) return; 
 
-      console.log("No moves left! Shuffling...");
       setShuffleMessage("Hết đường! Xáo trộn...");
       playSynthSound('shuffle');
 
@@ -362,7 +359,6 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMultiplayer, isHost, grid.length, connection]);
 
-  // Handle Data from Peer
   useEffect(() => {
     if (!isMultiplayer || !connection) return;
     const handleData = (data: any) => {
@@ -373,14 +369,14 @@ export const Game: React.FC<GameProps> = ({
       }
       
       if (msg.type === 'SEND_EMOJI') {
-          playSynthSound('emoji'); // Nghe thấy tiếng khi nhận icon
+          playSynthSound('emoji');
           setIncomingEmoji({ emoji: msg.payload.emoji, id: Date.now() });
           setTimeout(() => setIncomingEmoji(null), 3000);
       }
 
       if (msg.type === 'ITEM_ATTACK') {
         const { effect } = msg.payload;
-        playSynthSound(effect); // Phát âm thanh skill tương ứng
+        playSynthSound(effect);
         if (effect === 'BOMB') {
           setTimeLeft(prev => Math.max(0, prev - 10));
           setEffectMessage({ text: "Dính Bom! -10s", icon: "💣", subText: "Đau quá!" });
@@ -425,7 +421,6 @@ export const Game: React.FC<GameProps> = ({
     return () => { connection.off('data', handleData); };
   }, [isMultiplayer, connection, grid, score, isHost]);
 
-  // Inventory Clean up
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -436,7 +431,7 @@ export const Game: React.FC<GameProps> = ({
 
   const handleUseItem = (item: GameItem) => {
     setInventory(prev => prev.filter(i => i.id !== item.id));
-    playSynthSound(item.type); // Phát âm thanh khi dùng item
+    playSynthSound(item.type);
 
     switch (item.type) {
       case 'MAGIC':
@@ -470,9 +465,18 @@ export const Game: React.FC<GameProps> = ({
   };
 
   const sendEmoji = (emoji: string) => {
-      playSynthSound('emoji'); // Phát âm thanh cho người gửi
+      // 1. Play sound
+      playSynthSound('emoji');
+      
+      // 2. Hide picker
       setShowEmojiPicker(false);
+      
+      // 3. Send to peer
       connection?.send({ type: 'SEND_EMOJI', payload: { emoji } } as MultiPlayerMessage);
+      
+      // 4. Show locally (FIX: Hiển thị ngay lập tức cho người gửi)
+      setIncomingEmoji({ emoji, id: Date.now() });
+      setTimeout(() => setIncomingEmoji(null), 3000);
   };
 
   useEffect(() => {
@@ -557,8 +561,6 @@ export const Game: React.FC<GameProps> = ({
       } 
     }
     
-    // Logic Magic cũ: Quá bá đạo
-    // Logic mới: Giới hạn <= 4 ô (Hình vuông 2x2 hoặc hàng 4)
     const isMagicValid = magicActive && selectedCells.length > 0 && selectedCells.length <= 4;
 
     if (isMagicValid || currentSum === TARGET_SUM) {
@@ -626,7 +628,6 @@ export const Game: React.FC<GameProps> = ({
     setTimeout(() => setIsProcessing(false), 150);
   };
 
-  // ... (currentSum, isValidSum...)
   const currentSum = (() => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return 0;
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
@@ -667,7 +668,7 @@ export const Game: React.FC<GameProps> = ({
 
       {/* HUD */}
       <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-50">
-        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 relative min-h-[80px] flex items-center">
+        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 relative min-h-[90px] flex items-center">
            
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
              <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00bcd4]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
@@ -676,27 +677,34 @@ export const Game: React.FC<GameProps> = ({
            <div className="flex items-center w-full justify-between px-2 pb-1 relative z-10">
              
              {/* LEFT: PLAYER */}
-             <div className="flex flex-col relative w-24 sm:w-32" style={{ overflow: 'visible' }}>
-               <div className="flex items-center relative gap-2">
+             <div className="flex flex-col items-center relative min-w-[80px] w-32 sm:w-44">
+               <span className="text-[10px] sm:text-xs font-bold text-[#00838f] uppercase truncate max-w-[100px] text-center leading-tight mb-1">
+                 {myName}
+               </span>
+               <div className="relative">
                  <div className="text-3xl filter drop-shadow-md">{myAvatar}</div>
-                 <span className="text-xs font-bold text-[#00838f] uppercase truncate w-full">{myName}</span>
-                 
-                 {/* THANH STREAK */}
                  {streak > 0 && (
-                   <div className="absolute left-12 top-full mt-2 flex flex-col items-center animate-bounce z-50">
+                   <div className="absolute right-12 right-full mb-5 flex flex-col items-center animate-bounce z-50">
                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap border-2 border-white">
                        🔥 x{streak}
                      </span>
                      <div className="w-10 h-1 bg-gray-300 mt-1 rounded-full overflow-hidden shadow-inner border border-white/50">
-                        <div key={streak} className="h-full bg-orange-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
+                        <div 
+                          key={streak} 
+                          className="h-full bg-orange-500" 
+                          style={{ 
+                            width: '100%', 
+                            animation: 'streak-countdown 5s linear forwards' 
+                          }} 
+                        />
                      </div>
                    </div>
                  )}
                </div>
-               <div className="relative">
+               <div className="relative mt-1">
                  <span className="text-2xl font-black text-[#006064] leading-none">{score}</span>
                  {bonusText && (
-                   <span key={bonusText.id} className={`absolute -top-6 left-10 ${bonusText.color || 'text-yellow-400'} font-black text-2xl animate-float-up pointer-events-none drop-shadow-md whitespace-nowrap z-50`}>
+                   <span key={bonusText.id} className={`absolute -top-6 left-1/2 -translate-x-1/2 ${bonusText.color || 'text-yellow-400'} font-black text-2xl animate-float-up pointer-events-none drop-shadow-md whitespace-nowrap z-50`}>
                      {bonusText.text}
                    </span>
                  )}
@@ -706,8 +714,6 @@ export const Game: React.FC<GameProps> = ({
              {/* CENTER: INVENTORY & NOTIFICATIONS */}
              {isMultiplayer && (
                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center z-50 pointer-events-auto">
-                  
-                  {/* --- 3 Ô VẬT PHẨM --- */}
                   <div className="flex gap-1.5">
                     {[0, 1, 2].map(index => {
                       const item = inventory[index];
@@ -722,7 +728,6 @@ export const Game: React.FC<GameProps> = ({
                           >
                             {item ? ITEM_CONFIG[item.type].icon : ''}
                           </button>
-                          
                           {item && (
                              <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
                                <circle cx="18" cy="18" r="16" stroke="white" strokeWidth="2" fill="none" strokeDasharray="100" strokeDashoffset={100 * ((Date.now() - item.receivedAt)/60000)} className="opacity-40" />
@@ -732,8 +737,6 @@ export const Game: React.FC<GameProps> = ({
                       );
                     })}
                   </div>
-
-                  {/* THÔNG BÁO VẬT PHẨM (NẰM DƯỚI) */}
                   {effectMessage && (
                     <div className="absolute top-full mt-2 bg-black/80 text-white px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20 animate-fade-in flex items-center gap-2 min-w-max z-50">
                        <span className="text-xl">{effectMessage.icon}</span>
@@ -743,35 +746,32 @@ export const Game: React.FC<GameProps> = ({
                        </div>
                     </div>
                   )}
-
                </div>
              )}
 
              {/* RIGHT: OPPONENT */}
              {isMultiplayer && (
-               <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 relative overflow-visible">
-                  <div className="flex items-center justify-end gap-2">
-                      <span className="text-xs font-bold text-gray-500 uppercase truncate max-w-[80px]">{opponentName}</span>
-                      
-                      {/* OPPONENT AVATAR (Có âm thanh khi bấm mở) */}
+               <div className="flex flex-col items-center relative min-w-[80px] w-32 sm:w-44 relative overflow-visible">
+                  <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase truncate max-w-[100px] text-center leading-tight mb-1">
+                    {opponentName}
+                  </span>
+                  <div className="relative">
                       <button 
                         onClick={() => {
                             setShowEmojiPicker(!showEmojiPicker);
-                            playSynthSound('pop'); // Sound effect
+                            playSynthSound('pop');
                         }}
-                        className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none"
+                        className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none active:scale-95"
                       >
                           {opponentAvatar}
                       </button>
-
-                      {/* EMOJI PICKER */}
                       {showEmojiPicker && (
-                          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border-2 border-gray-200 p-2 grid grid-cols-5 gap-1 w-48 z-50 animate-fade-in">
+                          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border-4 border-cyan-500 p-2 grid grid-cols-5 gap-2 w-64 z-[100] animate-fade-in">
                               {REACTION_EMOJIS.map(emoji => (
                                   <button 
                                     key={emoji}
                                     onClick={() => sendEmoji(emoji)}
-                                    className="text-2xl hover:bg-gray-100 p-1 rounded transition-colors active:scale-95"
+                                    className="text-3xl hover:bg-gray-100 p-2 rounded-lg transition-colors active:scale-90"
                                   >
                                       {emoji}
                                   </button>
@@ -779,10 +779,9 @@ export const Game: React.FC<GameProps> = ({
                           </div>
                       )}
                   </div>
-
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-xl font-bold text-gray-600 leading-none">{opponentScore}</span>
-                    <span className={`text-xs font-mono ${opponentTimeLeft < 10 ? 'text-red-500' : 'text-gray-400'}`}>{Math.ceil(opponentTimeLeft)}s</span>
+                    <span className={`text-[10px] font-mono ${opponentTimeLeft < 10 ? 'text-red-500' : 'text-gray-400'}`}>{Math.ceil(opponentTimeLeft)}s</span>
                   </div>
                </div>
              )}

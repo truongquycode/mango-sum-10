@@ -1,5 +1,5 @@
 // components/LobbyScreen.tsx
-import React, { useState, useRef, useEffect } from 'react'; // Import thêm useRef, useEffect
+import React, { useState, useRef, useEffect } from 'react'; 
 import { Button } from './UI/Button';
 import { AVATARS } from '../constants';
 
@@ -22,11 +22,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   const [copied, setCopied] = useState(false);
   const [step, setStep] = useState<'NAME' | 'LOBBY'>(myName && myName !== "Bạn" ? 'LOBBY' : 'NAME');
 
-  // --- AUDIO LOGIC ---
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    // Khởi tạo AudioContext
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     return () => {
         if (audioContextRef.current) audioContextRef.current.close();
@@ -44,7 +42,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     osc.connect(gainNode);
     gainNode.connect(ctx.destination);
 
-    // Âm thanh "bloop" nhẹ nhàng
     osc.type = 'sine';
     osc.frequency.setValueAtTime(300, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
@@ -77,7 +74,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
 
       <div className="z-10 bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-xl border-4 border-cyan-200 max-w-md w-full space-y-6 max-h-[90vh] overflow-y-auto">
         
-        {/* --- BƯỚC 1: NHẬP TÊN & AVATAR --- */}
         {step === 'NAME' && (
           <>
             <div className="text-center">
@@ -85,14 +81,13 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               <p className="text-gray-500 text-sm">Chọn avatar và nhập tên</p>
             </div>
             
-            {/* Chọn Avatar */}
             <div className="grid grid-cols-5 gap-2 p-2 bg-gray-100 rounded-xl max-h-40 overflow-y-auto custom-scrollbar">
                 {AVATARS.map((av) => (
                     <button 
                         key={av}
                         onClick={() => {
                             setMyAvatar(av);
-                            playSelectSound(); // Phát âm thanh khi chọn
+                            playSelectSound(); 
                         }}
                         className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all ${myAvatar === av ? 'bg-cyan-500 shadow-lg scale-110 border-2 border-white' : 'bg-white hover:bg-gray-200'}`}
                     >
@@ -110,7 +105,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                     value={myName}
                     onChange={(e) => setMyName(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
-                    maxLength={10}
+                    maxLength={12} // Tăng lên 12 ký tự (hoặc 15 nếu bạn muốn dài hơn nữa)
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && handleConfirmName()}
                   />
@@ -127,7 +122,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
           </>
         )}
 
-        {/* --- BƯỚC 2: SẢNH CHỜ --- */}
         {step === 'LOBBY' && (
           <>
             <div className="text-center">
@@ -144,7 +138,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               </div>
             </div>
 
-            {/* Mã Phòng */}
             <div className="bg-cyan-50 p-4 rounded-xl border border-cyan-200 text-center">
               <p className="text-xs font-bold text-cyan-500 uppercase tracking-wide mb-2">Mã Phòng Của Em</p>
               {displayId ? (
@@ -169,7 +162,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               <div className="flex-grow border-t border-gray-200"></div>
             </div>
 
-            {/* Nhập mã bạn bè */}
             <div className="space-y-3">
               <input 
                 type="number" 
@@ -188,7 +180,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               </Button>
             </div>
 
-            <Button onClick={onBack}  className="w-full mt-4">
+            <Button onClick={onBack} className="w-full mt-4">
               Quay Lại
             </Button>
           </>
