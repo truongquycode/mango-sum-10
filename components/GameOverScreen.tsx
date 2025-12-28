@@ -75,7 +75,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
         <div className="flex flex-col gap-3">
           <Button 
             onClick={onRestart} 
-            variant="primary" 
+            variant="secondary" 
             className="w-full relative"
             disabled={isWaitingForOpponent}
           >
@@ -89,7 +89,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
             )}
           </Button>
           
-          <Button onClick={onHome} variant="secondary" className="w-full">
+          <Button onClick={onHome} variant="primary" className="w-full">
             Về Menu Chính
           </Button>
         </div>

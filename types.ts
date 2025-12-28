@@ -24,8 +24,17 @@ export interface DragState {
   currentPos: Position | null;
 }
 
+export type ItemType = 'BOMB' | 'MAGIC' | 'FREEZE' | 'SPEED_UP' | 'STEAL' | 'DEBUFF_SCORE' | 'BUFF_SCORE';
+
+export interface GameItem {
+  id: string;
+  type: ItemType;
+  receivedAt: number;
+}
+
 export interface MultiPlayerMessage {
-  // Đã thêm GRID_UPDATE vào đây để sửa lỗi
-  type: 'START' | 'GRID_UPDATE' | 'SYNC_MAP' | 'UPDATE_SCORE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY';
+  // Thêm SEND_EMOJI
+  type: 'START' | 'GRID_UPDATE' | 'SYNC_MAP' | 'UPDATE_SCORE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY' 
+        | 'ITEM_ATTACK' | 'REQUEST_MAP' | 'SEND_EMOJI';
   payload?: any;
 }

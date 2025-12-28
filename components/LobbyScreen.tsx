@@ -1,6 +1,7 @@
 // components/LobbyScreen.tsx
 import React, { useState } from 'react';
 import { Button } from './UI/Button';
+import { AVATARS } from '../constants'; // Import danh sách avatar
 
 interface LobbyScreenProps {
   displayId: string | null;
@@ -9,13 +10,16 @@ interface LobbyScreenProps {
   isConnecting: boolean;
   myName: string;
   setMyName: (name: string) => void;
+  myAvatar: string;
+  setMyAvatar: (avatar: string) => void;
 }
 
-export const LobbyScreen: React.FC<LobbyScreenProps> = ({ displayId, onJoin, onBack, isConnecting, myName, setMyName }) => {
+export const LobbyScreen: React.FC<LobbyScreenProps> = ({ 
+  displayId, onJoin, onBack, isConnecting, 
+  myName, setMyName, myAvatar, setMyAvatar 
+}) => {
   const [remoteCode, setRemoteCode] = useState('');
   const [copied, setCopied] = useState(false);
-  
-  // Nếu chưa có tên thì ở bước NAME, có rồi thì vào LOBBY
   const [step, setStep] = useState<'NAME' | 'LOBBY'>(myName && myName !== "Bạn" ? 'LOBBY' : 'NAME');
 
   const handleCopy = () => {
@@ -34,31 +38,46 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ displayId, onJoin, onB
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full p-4 bg-cyan-50 relative overflow-hidden">
-       {/* Background Decor */}
        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-cyan-200 rounded-full opacity-30 blur-2xl" />
        <div className="absolute bottom-[-10%] right-[-10%] w-80 h-80 bg-blue-200 rounded-full opacity-30 blur-2xl" />
 
-      <div className="z-10 bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-xl border-4 border-cyan-200 max-w-md w-full space-y-6">
+      <div className="z-10 bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-xl border-4 border-cyan-200 max-w-md w-full space-y-6 max-h-[90vh] overflow-y-auto">
         
-        {/* --- BƯỚC 1: NHẬP TÊN --- */}
+        {/* --- BƯỚC 1: NHẬP TÊN & AVATAR --- */}
         {step === 'NAME' && (
           <>
             <div className="text-center">
-              <h2 className="text-3xl font-black text-cyan-600 mb-2">Nhập Tên</h2>
-              <p className="text-gray-500 text-sm">Hãy chọn một cái tên thật ngầu!</p>
+              <h2 className="text-3xl font-black text-cyan-600 mb-1">Hồ Sơ</h2>
+              <p className="text-gray-500 text-sm">Chọn avatar và nhập tên</p>
             </div>
             
+            {/* Chọn Avatar */}
+            <div className="grid grid-cols-5 gap-2 p-2 bg-gray-100 rounded-xl max-h-40 overflow-y-auto custom-scrollbar">
+                {AVATARS.map((av) => (
+                    <button 
+                        key={av}
+                        onClick={() => setMyAvatar(av)}
+                        className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all ${myAvatar === av ? 'bg-cyan-500 shadow-lg scale-110 border-2 border-white' : 'bg-white hover:bg-gray-200'}`}
+                    >
+                        {av}
+                    </button>
+                ))}
+            </div>
+
             <div className="space-y-4">
-              <input 
-                type="text" 
-                placeholder="Tên của bạn..." 
-                value={myName}
-                onChange={(e) => setMyName(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
-                maxLength={10}
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleConfirmName()}
-              />
+              <div className="flex flex-col items-center">
+                  <div className="text-6xl mb-2 animate-bounce">{myAvatar}</div>
+                  <input 
+                    type="text" 
+                    placeholder="Tên của bạn..." 
+                    value={myName}
+                    onChange={(e) => setMyName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
+                    maxLength={10}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleConfirmName()}
+                  />
+              </div>
               
               <Button onClick={handleConfirmName} disabled={!myName.trim()} className="w-full">
                 Tiếp Tục
@@ -76,13 +95,14 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({ displayId, onJoin, onB
           <>
             <div className="text-center">
               <h2 className="text-3xl font-black text-cyan-600 mb-1">Phòng Chơi</h2>
-              <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
-                <span>Xin chào, <b className="text-cyan-600">{myName}</b></span>
+              <div className="flex items-center justify-center gap-2 text-gray-500 text-sm bg-gray-100 py-1 px-3 rounded-full mx-auto w-fit">
+                <span className="text-2xl">{myAvatar}</span>
+                <span className="font-bold text-gray-700">{myName}</span>
                 <button 
                   onClick={() => setStep('NAME')} 
-                  className="text-xs underline hover:text-cyan-500 bg-gray-100 px-2 py-0.5 rounded"
+                  className="ml-2 text-xs text-cyan-600 underline hover:text-cyan-800"
                 >
-                  Sửa tên
+                  Sửa
                 </button>
               </div>
             </div>

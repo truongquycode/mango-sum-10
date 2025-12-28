@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DataConnection } from 'peerjs';
 import { GRID_ROWS, GRID_COLS, TARGET_SUM, GAME_DURATION_SECONDS, BASE_SCORE } from '../constants';
-import { Position, MangoCell, DragState, MultiPlayerMessage } from '../types';
+import { Position, MangoCell, DragState, MultiPlayerMessage, GameItem, ItemType } from '../types';
 import { MangoIcon } from './MangoIcon';
+import { ITEM_CONFIG, REACTION_EMOJIS } from '../constants';
 
 interface GameProps {
   onGameOver: (score: number) => void;
@@ -12,11 +13,20 @@ interface GameProps {
   connection?: DataConnection | null;
   myName?: string;
   opponentName?: string;
+  myAvatar?: string;
+  opponentAvatar?: string;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- CÁC HÀM HỖ TRỢ ---
+// Hàm random có loại trừ item đã có
+const getRandomItemType = (exclude: ItemType[] = []): ItemType | null => {
+  const items: ItemType[] = ['BOMB', 'MAGIC', 'FREEZE', 'SPEED_UP', 'STEAL', 'DEBUFF_SCORE', 'BUFF_SCORE'];
+  const available = items.filter(i => !exclude.includes(i));
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+};
+
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -28,11 +38,29 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 
 const generateSolvableValues = (totalCells: number): number[] => {
   const values: number[] = [];
-  while (values.length < totalCells) {
-    const num1 = Math.floor(Math.random() * 9) + 1;
-    const num2 = TARGET_SUM - num1;
-    values.push(num1);
-    values.push(num2);
+  let currentCount = 0;
+  while (currentCount < totalCells) {
+    const remaining = totalCells - currentCount;
+    const wantTriplet = (Math.random() < 0.35 || remaining === 3) && remaining >= 3;
+    if (wantTriplet) {
+       const a = Math.floor(Math.random() * 5) + 1; 
+       const maxB = 9 - a; 
+       const b = Math.floor(Math.random() * (maxB - 1)) + 1; 
+       const c = 10 - a - b;
+       values.push(a, b, c);
+       currentCount += 3;
+    } else {
+       if (remaining >= 2) {
+         let a = Math.floor(Math.random() * 9) + 1;
+         if ((a === 1 || a === 9) && Math.random() > 0.5) a = 5;
+         const b = 10 - a;
+         values.push(a, b);
+         currentCount += 2;
+       } else {
+         values.push(5);
+         currentCount += 1;
+       }
+    }
   }
   return shuffleArray(values);
 };
@@ -47,7 +75,7 @@ const createInitialGrid = (): MangoCell[][] => {
     for (let c = 0; c < GRID_COLS; c++) {
       row.push({
         id: generateId(),
-        value: solvableValues[valueIndex],
+        value: solvableValues[valueIndex] || 5,
         isRemoved: false,
       });
       valueIndex++;
@@ -63,22 +91,37 @@ export const Game: React.FC<GameProps> = ({
   isHost = true, 
   connection,
   myName = "Bạn",
-  opponentName = "Đối thủ"
+  opponentName = "Đối thủ",
+  myAvatar = "😎",
+  opponentAvatar = "👤"
 }) => {
   const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
   const [score, setScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(GAME_DURATION_SECONDS);
+  const [timeLeft, setTimeLeft] = useState<number>(GAME_DURATION_SECONDS);
   const [opponentTimeLeft, setOpponentTimeLeft] = useState(GAME_DURATION_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // State Chuỗi & Hiệu ứng
   const [streak, setStreak] = useState(0);
-  const [bonusText, setBonusText] = useState<{ text: string, id: number } | null>(null);
+  const [bonusText, setBonusText] = useState<{ text: string, id: number, color?: string } | null>(null);
   const [errorCellIds, setErrorCellIds] = useState<Set<string>>(new Set());
   
-  const [isMuted, setIsMuted] = useState(false);
+  // State Item & Effect
+  const [inventory, setInventory] = useState<GameItem[]>([]); 
+  const [magicActive, setMagicActive] = useState(false); 
+  const [isFrozen, setIsFrozen] = useState(false); 
+  const [speedMultiplier, setSpeedMultiplier] = useState(1); 
+  const [scoreMultiplier, setScoreMultiplier] = useState(1); 
+  const [scoreDebuff, setScoreDebuff] = useState(1); 
+  
+  const [effectMessage, setEffectMessage] = useState<{text: string, icon: string, subText?: string} | null>(null);
+  const [shuffleMessage, setShuffleMessage] = useState<string | null>(null);
 
+  // EMOJI STATE
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [incomingEmoji, setIncomingEmoji] = useState<{ emoji: string, id: number } | null>(null);
+
+  const [isMuted, setIsMuted] = useState(false);
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [dragState, setDragState] = useState<DragState>({
@@ -86,43 +129,29 @@ export const Game: React.FC<GameProps> = ({
   });
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // --- AUDIO SYSTEM ---
+  // --- AUDIO ---
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     const audio = new Audio('/assets/bgm.mp3'); 
     audio.loop = true;
     audio.volume = 0.3; 
     bgmRef.current = audio;
-
     const forcePlayMusic = () => {
       if (bgmRef.current && !isMuted && bgmRef.current.paused) {
-        bgmRef.current.play()
-          .then(() => {
-            document.removeEventListener('click', forcePlayMusic);
-            document.removeEventListener('touchstart', forcePlayMusic);
-          })
-          .catch(() => {});
+        bgmRef.current.play().catch(() => {});
       }
-      if (audioContextRef.current?.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
+      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
     };
-
     if (!isMuted) {
       const playPromise = bgmRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          document.addEventListener('click', forcePlayMusic);
-          document.addEventListener('touchstart', forcePlayMusic);
-        });
-      }
+      if (playPromise !== undefined) playPromise.catch(() => {
+          document.addEventListener('click', forcePlayMusic, {once:true});
+          document.addEventListener('touchstart', forcePlayMusic, {once:true});
+      });
     }
-
     return () => {
       bgmRef.current?.pause();
       if (audioContextRef.current) audioContextRef.current.close();
-      document.removeEventListener('click', forcePlayMusic);
-      document.removeEventListener('touchstart', forcePlayMusic);
     };
   }, []);
 
@@ -133,7 +162,7 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMuted]);
 
-  const playSynthSound = useCallback((type: 'correct' | 'wrong') => {
+  const playSynthSound = useCallback((type: 'correct' | 'wrong' | 'powerup' | 'debuff' | 'shuffle' | 'emoji') => {
     if (isMuted || !audioContextRef.current) return;
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
 
@@ -152,7 +181,7 @@ export const Game: React.FC<GameProps> = ({
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
-    } else {
+    } else if (type === 'wrong') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(150, ctx.currentTime);
       osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
@@ -160,92 +189,257 @@ export const Game: React.FC<GameProps> = ({
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'powerup') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      osc.frequency.linearRampToValueAtTime(1800, ctx.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } else if (type === 'debuff') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.4);
+      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } else if (type === 'shuffle') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } else if (type === 'emoji') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
     }
   }, [isMuted, streak]);
 
-  // --- LOGIC GAME ---
-  
-  // Xử lý đếm ngược chuỗi thắng (Streak) 5 giây
+  // --- LOGIC ---
+  const hasValidMoves = (currentGrid: MangoCell[][]): boolean => {
+    for (let r1 = 0; r1 < GRID_ROWS; r1++) {
+      for (let c1 = 0; c1 < GRID_COLS; c1++) {
+        for (let r2 = r1; r2 < GRID_ROWS; r2++) {
+          for (let c2 = c1; c2 < GRID_COLS; c2++) {
+              let sum = 0;
+              for(let i = r1; i <= r2; i++) {
+                  for(let j = c1; j <= c2; j++) {
+                      if (!currentGrid[i][j].isRemoved) {
+                          sum += currentGrid[i][j].value;
+                      }
+                  }
+              }
+              if (sum === TARGET_SUM) return true;
+              if (sum > TARGET_SUM) break; 
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    if (grid.length === 0) return;
+    if (isMultiplayer && !isHost) return; 
+
+    const movesAvailable = hasValidMoves(grid);
+
+    if (!movesAvailable) {
+      let remainingSum = 0;
+      const remainingValues: number[] = [];
+      grid.forEach(row => row.forEach(cell => {
+        if (!cell.isRemoved) {
+          remainingSum += cell.value;
+          remainingValues.push(cell.value);
+        }
+      }));
+
+      if (remainingSum < TARGET_SUM) return; 
+
+      console.log("No moves left! Shuffling...");
+      setShuffleMessage("Hết đường! Xáo trộn...");
+      playSynthSound('shuffle');
+
+      const shuffledValues = shuffleArray(remainingValues);
+      let valIdx = 0;
+      const newGrid = grid.map(row => row.map(cell => {
+        if (cell.isRemoved) return cell;
+        const newVal = shuffledValues[valIdx++];
+        return { ...cell, value: newVal };
+      }));
+
+      setTimeout(() => {
+        setGrid(newGrid);
+        setShuffleMessage(null);
+        if (isMultiplayer && connection) {
+          connection.send({ 
+            type: 'GRID_UPDATE', 
+            payload: { grid: newGrid, score, opponentName: myName, opponentAvatar: myAvatar } 
+          } as MultiPlayerMessage);
+        }
+      }, 1500);
+    }
+  }, [grid, isHost, isMultiplayer, connection]);
+
+  useEffect(() => {
+    if (isMultiplayer && !isHost && grid.length === 0 && connection) {
+      const interval = setInterval(() => {
+        if (grid.length === 0) {
+          connection.send({ type: 'REQUEST_MAP' } as MultiPlayerMessage);
+        } else {
+          clearInterval(interval);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isMultiplayer, isHost, grid.length, connection]);
+
+  // Handle Data from Peer
+  useEffect(() => {
+    if (!isMultiplayer || !connection) return;
+    const handleData = (data: any) => {
+      const msg = data as MultiPlayerMessage;
+      
+      if (msg.type === 'REQUEST_MAP' && isHost) {
+        connection.send({ type: 'GRID_UPDATE', payload: { grid, score, opponentName: myName, opponentAvatar: myAvatar } } as MultiPlayerMessage);
+      }
+      
+      if (msg.type === 'SEND_EMOJI') {
+          playSynthSound('emoji');
+          setIncomingEmoji({ emoji: msg.payload.emoji, id: Date.now() });
+          setTimeout(() => setIncomingEmoji(null), 3000);
+      }
+
+      if (msg.type === 'ITEM_ATTACK') {
+        const { effect, amount } = msg.payload;
+        playSynthSound('debuff');
+        if (effect === 'BOMB') {
+          setTimeLeft(prev => Math.max(0, prev - 10));
+          setEffectMessage({ text: "Dính Bom! -10s", icon: "💣", subText: "Đau quá!" });
+        } else if (effect === 'SPEED_UP') {
+          setSpeedMultiplier(1.5);
+          setEffectMessage({ text: "Tua Nhanh", icon: "⏩", subText: "Thời gian trôi 1.5x" });
+          setTimeout(() => { setSpeedMultiplier(1); setEffectMessage(null); }, 10000);
+        } else if (effect === 'DEBUFF_SCORE') {
+          setScoreDebuff(0.5);
+          setEffectMessage({ text: "Giảm Điểm", icon: "📉", subText: "Chỉ nhận 50% điểm" });
+          setTimeout(() => { setScoreDebuff(1); setEffectMessage(null); }, 10000);
+        } else if (effect === 'STEAL') {
+          const stolen = Math.floor(score * 0.1);
+          setScore(prev => prev - stolen);
+          setEffectMessage({ text: "Bị Cướp!", icon: "😈", subText: `Mất ${stolen} điểm` });
+          setTimeout(() => setEffectMessage(null), 2000);
+        }
+        setTimeout(() => setEffectMessage(null), 2000);
+      }
+      if (msg.type === 'GRID_UPDATE') {
+        const remoteGrid = msg.payload.grid;
+        if (grid.length === 0 && remoteGrid) setGrid(remoteGrid);
+        else if (remoteGrid) {
+          setGrid(prev => prev.map((row, r) => row.map((c, idx) => ({
+            ...c, 
+            isRemoved: c.isRemoved || remoteGrid[r][idx].isRemoved,
+            value: !c.isRemoved && !remoteGrid[r][idx].isRemoved ? remoteGrid[r][idx].value : c.value
+          }))));
+        }
+        if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
+        if (msg.payload.opponentName) { /* update name */ }
+        if (msg.payload.opponentAvatar) { /* update avatar */ }
+      } 
+      else if (msg.type === 'UPDATE_SCORE') {
+        if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
+      } 
+      else if (msg.type === 'TIME_UPDATE') {
+        setOpponentTimeLeft(msg.payload);
+      }
+    };
+    connection.on('data', handleData);
+    return () => { connection.off('data', handleData); };
+  }, [isMultiplayer, connection, grid, score, isHost]);
+
+  // Inventory Clean up
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setInventory(prev => prev.filter(item => now - item.receivedAt < 60000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleUseItem = (item: GameItem) => {
+    setInventory(prev => prev.filter(i => i.id !== item.id));
+    switch (item.type) {
+      case 'MAGIC':
+        setMagicActive(true);
+        setEffectMessage({ text: "Xoài Thần Kỳ", icon: "🌈", subText: "Chọn bừa cũng đúng!" });
+        setTimeout(() => setEffectMessage(null), 2000);
+        break;
+      case 'FREEZE':
+        setIsFrozen(true);
+        setEffectMessage({ text: "Đóng Băng", icon: "❄️", subText: "Dừng giờ 5s" });
+        setTimeout(() => { setIsFrozen(false); setEffectMessage(null); }, 5000);
+        break;
+      case 'BUFF_SCORE':
+        setScoreMultiplier(2);
+        setEffectMessage({ text: "X2 Điểm", icon: "🚀", subText: "Nhân đôi điểm 10s" });
+        setTimeout(() => { setScoreMultiplier(1); setEffectMessage(null); }, 10000);
+        break;
+      case 'BOMB':
+        connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'BOMB' } } as MultiPlayerMessage);
+        break;
+      case 'SPEED_UP':
+        connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'SPEED_UP' } } as MultiPlayerMessage);
+        break;
+      case 'DEBUFF_SCORE':
+        connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'DEBUFF_SCORE' } } as MultiPlayerMessage);
+        break;
+      case 'STEAL':
+        connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'STEAL', amount: Math.floor(opponentScore * 0.1) } } as MultiPlayerMessage);
+        break;
+    }
+  };
+
+  const sendEmoji = (emoji: string) => {
+      setShowEmojiPicker(false);
+      connection?.send({ type: 'SEND_EMOJI', payload: { emoji } } as MultiPlayerMessage);
+  };
+
+  useEffect(() => {
+    if (timeLeft <= 0) { onGameOver(score); return; }
+    const interval = setInterval(() => {
+      if (!isFrozen) {
+        setTimeLeft((prev) => {
+          const reduction = 1 * speedMultiplier;
+          const newTime = Math.max(0, prev - reduction);
+          if (isMultiplayer && connection) {
+             connection.send({ type: 'TIME_UPDATE', payload: Math.ceil(newTime) } as MultiPlayerMessage);
+          }
+          return newTime;
+        });
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft, onGameOver, isMultiplayer, connection, isFrozen, speedMultiplier]);
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (streak > 0) { 
-      timer = setTimeout(() => { 
-        setStreak(0); // Reset về 0 sau 5s
-      }, 5000); 
+      timer = setTimeout(() => { setStreak(0); }, 5000); 
     }
     return () => clearTimeout(timer);
   }, [streak]);
 
-  // Host gửi map ban đầu
-  useEffect(() => {
-    if (isMultiplayer && isHost && connection && grid.length > 0) {
-      connection.send({ 
-        type: 'GRID_UPDATE', 
-        payload: { 
-          grid, 
-          score, 
-          opponentScore: score, 
-          opponentName: myName 
-        } 
-      } as MultiPlayerMessage);
-    }
-  }, []);
-
-  // Nhận dữ liệu (Smart Merge)
-  useEffect(() => {
-    if (!isMultiplayer || !connection) return;
-    
-    const handleData = (data: any) => {
-      const msg = data as MultiPlayerMessage;
-      
-      if (msg.type === 'GRID_UPDATE') {
-        const remoteGrid = msg.payload.grid;
-        if (grid.length === 0 && remoteGrid) {
-          setGrid(remoteGrid);
-        } else if (remoteGrid) {
-          setGrid(prevGrid => {
-            return prevGrid.map((row, r) => 
-              row.map((cell, c) => ({
-                ...cell,
-                isRemoved: cell.isRemoved || remoteGrid[r][c].isRemoved
-              }))
-            );
-          });
-        }
-        if (msg.payload.score !== undefined) {
-          setOpponentScore(msg.payload.score);
-        }
-      } else if (msg.type === 'UPDATE_SCORE') {
-        if (msg.payload.score !== undefined) {
-          setOpponentScore(msg.payload.score);
-        }
-      } else if (msg.type === 'TIME_UPDATE') {
-        setOpponentTimeLeft(msg.payload);
-      }
-    };
-    
-    connection.on('data', handleData);
-    return () => { connection.off('data', handleData); };
-  }, [isMultiplayer, connection, grid.length]);
-
-  useEffect(() => {
-    if (timeLeft <= 0) { onGameOver(score); return; }
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        const newTime = prev - 1;
-        if (isMultiplayer && connection) connection.send({ type: 'TIME_UPDATE', payload: newTime } as MultiPlayerMessage);
-        return newTime;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft, onGameOver, score, isMultiplayer, connection]);
-
-  useEffect(() => {
-    const preventDefault = (e: TouchEvent) => e.preventDefault();
-    if (gridRef.current) gridRef.current.addEventListener('touchmove', preventDefault, { passive: false });
-    return () => { if (gridRef.current) gridRef.current.removeEventListener('touchmove', preventDefault); };
-  }, []);
-
+  // Game Logic Handlers
   const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
     if (!gridRef.current) return null;
     const rect = gridRef.current.getBoundingClientRect();
@@ -269,7 +463,7 @@ export const Game: React.FC<GameProps> = ({
   }, [dragState]);
 
   const handleStart = (clientX: number, clientY: number) => {
-    if (isProcessing) return; 
+    if (isProcessing || shuffleMessage) return; 
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
     const pos = getCellFromCoords(clientX, clientY, true); 
     if (pos && !grid[pos.row][pos.col].isRemoved) setDragState({ isDragging: true, startPos: pos, currentPos: pos });
@@ -283,20 +477,33 @@ export const Game: React.FC<GameProps> = ({
 
   const handleEnd = () => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) { setDragState({ isDragging: false, startPos: null, currentPos: null }); return; }
+    
     const minRow = Math.min(dragState.startPos.row, dragState.currentPos.row);
     const maxRow = Math.max(dragState.startPos.row, dragState.currentPos.row);
     const minCol = Math.min(dragState.startPos.col, dragState.currentPos.col);
     const maxCol = Math.max(dragState.startPos.col, dragState.currentPos.col);
-    let currentSum = 0; const selectedCells: Position[] = []; const idsToCheck: string[] = [];
-    for (let r = minRow; r <= maxRow; r++) { for (let c = minCol; c <= maxCol; c++) { if (!grid[r][c].isRemoved) { currentSum += grid[r][c].value; selectedCells.push({ row: r, col: c }); idsToCheck.push(grid[r][c].id); } } }
     
-    if (currentSum === TARGET_SUM) {
+    let currentSum = 0; 
+    const selectedCells: Position[] = []; 
+    const idsToCheck: string[] = [];
+
+    for (let r = minRow; r <= maxRow; r++) { 
+      for (let c = minCol; c <= maxCol; c++) { 
+        if (!grid[r][c].isRemoved) { 
+          currentSum += grid[r][c].value; 
+          selectedCells.push({ row: r, col: c }); 
+          idsToCheck.push(grid[r][c].id); 
+        } 
+      } 
+    }
+    
+    if ((magicActive && selectedCells.length > 0) || currentSum === TARGET_SUM) {
+      if (magicActive) { setMagicActive(false); setEffectMessage(null); }
       processMatch(selectedCells);
     } else if (selectedCells.length > 0) {
       playSynthSound('wrong'); 
-      setTimeLeft(prev => Math.max(0, prev - 10)); 
-      setStreak(0); // Reset chuỗi
-      
+      setTimeLeft(prev => Math.max(0, prev - 5)); 
+      setStreak(0);
       const newErrorSet = new Set(idsToCheck);
       setErrorCellIds(newErrorSet);
       setTimeout(() => { setErrorCellIds(new Set()); }, 400);
@@ -313,32 +520,44 @@ export const Game: React.FC<GameProps> = ({
     
     const basePoints = cellsToRemove.length * BASE_SCORE;
     const streakBonus = newStreak * 10; 
-    const totalAdded = basePoints + streakBonus;
+    let totalAdded = (basePoints + streakBonus);
+    totalAdded = Math.floor(totalAdded * scoreMultiplier * scoreDebuff);
+
     const newScore = score + totalAdded;
-    
     setScore(newScore);
-    setTimeLeft(prev => prev + 1);
-    
-    setBonusText({ text: `+${totalAdded}`, id: Date.now() });
+    setTimeLeft(prev => prev + 1); 
+    setBonusText({ text: `+${totalAdded}`, id: Date.now(), color: scoreMultiplier > 1 ? 'text-green-400' : 'text-yellow-400' });
     setTimeout(() => setBonusText(null), 1000);
+
+    if (isMultiplayer && inventory.length < 3 && Math.random() < 0.3) {
+      // LOẠI TRỪ ITEM ĐÃ CÓ
+      const currentItemTypes = inventory.map(i => i.type);
+      const newItemType = getRandomItemType(currentItemTypes);
+      
+      if (newItemType) {
+        const newItem: GameItem = { id: generateId(), type: newItemType, receivedAt: Date.now() };
+        setInventory(prev => [...prev, newItem]);
+        playSynthSound('powerup');
+        
+        // HIỂN THỊ THÔNG BÁO VẬT PHẨM (NẰM DƯỚI)
+        const itemConfig = ITEM_CONFIG[newItemType];
+        setEffectMessage({
+          text: `Nhận: ${itemConfig.name}`,
+          icon: itemConfig.icon,
+          subText: itemConfig.desc
+        });
+        setTimeout(() => setEffectMessage(null), 2500); 
+      }
+    }
 
     const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
     cellsToRemove.forEach(pos => { newGrid[pos.row][pos.col].isRemoved = true; });
     setGrid(newGrid);
     
     if (isMultiplayer && connection) {
-      connection.send({ 
-        type: 'UPDATE_SCORE', // Chỉ gửi điểm
-        payload: { score: newScore } 
-      } as MultiPlayerMessage);
-      
-      // Gửi riêng grid update để đồng bộ xóa ô mà không reset map
-      connection.send({
-        type: 'GRID_UPDATE',
-        payload: { grid: newGrid }
-      } as MultiPlayerMessage);
+      connection.send({ type: 'UPDATE_SCORE', payload: { score: newScore } } as MultiPlayerMessage);
+      connection.send({ type: 'GRID_UPDATE', payload: { grid: newGrid, opponentName: myName, opponentAvatar: myAvatar } } as MultiPlayerMessage);
     }
-    
     setTimeout(() => setIsProcessing(false), 150);
   };
 
@@ -356,31 +575,53 @@ export const Game: React.FC<GameProps> = ({
   if (grid.length === 0) return <div className="flex items-center justify-center h-full text-white font-bold animate-pulse text-xl">Đang tải bản đồ...</div>;
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-[#06b6d4] select-none touch-none overflow-hidden relative">
       
-      {/* HUD */}
-      <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-20">
-        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 flex justify-between items-center relative">
+      {/* SHUFFLE MESSAGE (z-[60] để cao hơn HUD) */}
+      {shuffleMessage && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white px-6 py-4 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce border-4 border-cyan-500">
+            <span className="text-4xl mb-2">🔄</span>
+            <span className="text-cyan-600 font-black text-xl">{shuffleMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* SCREEN EFFECTS (z-40) */}
+      {isFrozen && <div className="absolute inset-0 bg-blue-500/20 pointer-events-none z-40 animate-pulse border-4 border-blue-300"></div>}
+      {speedMultiplier > 1 && <div className="absolute inset-0 bg-red-500/10 pointer-events-none z-40 border-4 border-red-400"></div>}
+      {magicActive && <div className="absolute inset-0 pointer-events-none z-40 border-8 border-purple-400 opacity-50 animate-pulse"></div>}
+
+      {/* INCOMING EMOJI ANIMATION (z-[60]) */}
+      {incomingEmoji && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-9xl animate-emoji-pop z-[60] pointer-events-none drop-shadow-2xl">
+              {incomingEmoji.emoji}
+          </div>
+      )}
+
+      {/* HUD (z-50) */}
+      <div className="shrink-0 p-2 sm:p-4 w-full max-w-2xl mx-auto z-50">
+        <div className="bg-[#e0f7fa] rounded-2xl border-4 border-[#00838f] shadow-md p-2 relative min-h-[80px] flex items-center">
+           
            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-200 overflow-hidden rounded-b-xl">
              <div className={`h-full transition-all duration-1000 linear ${timeLeft < 10 ? 'bg-red-500' : 'bg-[#00bcd4]'}`} style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} />
            </div>
 
-           <div className="flex items-center gap-4 w-full justify-between px-2 pb-2">
+           <div className="flex items-center w-full justify-between px-2 pb-1 relative z-10">
              
-             {/* BÊN MÌNH (YOU) */}
-             <div className="flex flex-col relative w-24 sm:w-32" style={{ overflow: 'visible' }}> {/* QUAN TRỌNG: overflow visible để hiện streak */}
-               <div className="flex items-center relative">
+             {/* LEFT: PLAYER */}
+             <div className="flex flex-col relative w-24 sm:w-32" style={{ overflow: 'visible' }}>
+               <div className="flex items-center relative gap-2">
+                 <div className="text-3xl filter drop-shadow-md">{myAvatar}</div>
                  <span className="text-xs font-bold text-[#00838f] uppercase truncate w-full">{myName}</span>
                  
-                 {/* HIỂN THỊ CHUỖI VÀ THANH THỜI GIAN 5s */}
+                 {/* THANH STREAK (left-12, top-full) */}
                  {streak > 0 && (
-                   <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 flex flex-col justify-center animate-bounce z-50">
+                   <div className="absolute left-12 top-full mt-2 flex flex-col items-center animate-bounce z-50">
                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap border-2 border-white">
                        🔥 x{streak}
                      </span>
-                     {/* Thanh đếm ngược 5 giây */}
-                     <div className="w-full h-1 bg-gray-300 mt-1 rounded-full overflow-hidden shadow-inner border border-white/50">
-                        {/* Key={streak} giúp reset animation mỗi khi streak tăng */}
+                     <div className="w-10 h-1 bg-gray-300 mt-1 rounded-full overflow-hidden shadow-inner border border-white/50">
                         <div 
                           key={streak} 
                           className="h-full bg-orange-500" 
@@ -393,24 +634,95 @@ export const Game: React.FC<GameProps> = ({
                    </div>
                  )}
                </div>
-               
                <div className="relative">
                  <span className="text-2xl font-black text-[#006064] leading-none">{score}</span>
                  {bonusText && (
-                   <span key={bonusText.id} className="absolute -top-6 left-10 text-yellow-400 font-black text-2xl animate-float-up pointer-events-none drop-shadow-md whitespace-nowrap z-50">
+                   <span key={bonusText.id} className={`absolute -top-6 left-10 ${bonusText.color || 'text-yellow-400'} font-black text-2xl animate-float-up pointer-events-none drop-shadow-md whitespace-nowrap z-50`}>
                      {bonusText.text}
                    </span>
                  )}
                </div>
              </div>
 
-             {/* ĐỐI THỦ */}
+             {/* CENTER: INVENTORY & NOTIFICATIONS */}
              {isMultiplayer && (
-               <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 truncate">
-                  <span className="text-xs font-bold text-gray-500 uppercase truncate">{opponentName}</span>
+               <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col items-center z-50 pointer-events-auto">
+                  
+                  {/* 3 Ô VẬT PHẨM */}
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2].map(index => {
+                      const item = inventory[index];
+                      return (
+                        <div key={index} className="relative group">
+                          <button
+                            disabled={!item}
+                            onClick={() => item && handleUseItem(item)}
+                            className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-lg shadow-sm transition-all active:scale-95
+                              ${item ? `${ITEM_CONFIG[item.type].color} border-white text-white cursor-pointer hover:scale-110 shadow-md` : 'bg-black/5 border-black/10 cursor-default'}
+                            `}
+                          >
+                            {item ? ITEM_CONFIG[item.type].icon : ''}
+                          </button>
+                          
+                          {/* Timer circle */}
+                          {item && (
+                             <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                               <circle cx="18" cy="18" r="16" stroke="white" strokeWidth="2" fill="none" strokeDasharray="100" strokeDashoffset={100 * ((Date.now() - item.receivedAt)/60000)} className="opacity-40" />
+                             </svg>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* THÔNG BÁO VẬT PHẨM (ĐÃ CHUYỂN XUỐNG DƯỚI: top-full mt-2) */}
+                  {effectMessage && (
+                    <div className="absolute top-full mt-2 bg-black/80 text-white px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm border border-white/20 animate-fade-in flex items-center gap-2 min-w-max z-50">
+                       <span className="text-xl">{effectMessage.icon}</span>
+                       <div className="flex flex-col items-start">
+                          <span className="text-xs font-bold text-yellow-300 uppercase">{effectMessage.text}</span>
+                          {effectMessage.subText && <span className="text-[10px] text-gray-200">{effectMessage.subText}</span>}
+                       </div>
+                    </div>
+                  )}
+
+               </div>
+             )}
+
+             {/* RIGHT: OPPONENT */}
+             {isMultiplayer && (
+               // QUAN TRỌNG: Removed 'truncate' from container, added relative overflow-visible
+               <div className="flex flex-col items-end border-l pl-4 border-gray-200 w-24 sm:w-32 relative overflow-visible">
+                  <div className="flex items-center justify-end gap-2">
+                      <span className="text-xs font-bold text-gray-500 uppercase truncate max-w-[80px]">{opponentName}</span>
+                      
+                      {/* OPPONENT AVATAR */}
+                      <button 
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none"
+                      >
+                          {opponentAvatar}
+                      </button>
+
+                      {/* EMOJI PICKER */}
+                      {showEmojiPicker && (
+                          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border-2 border-gray-200 p-2 grid grid-cols-5 gap-1 w-48 z-50 animate-fade-in">
+                              {REACTION_EMOJIS.map(emoji => (
+                                  <button 
+                                    key={emoji}
+                                    onClick={() => sendEmoji(emoji)}
+                                    className="text-2xl hover:bg-gray-100 p-1 rounded transition-colors"
+                                  >
+                                      {emoji}
+                                  </button>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+
                   <div className="flex items-baseline gap-2">
                     <span className="text-xl font-bold text-gray-600 leading-none">{opponentScore}</span>
-                    <span className={`text-xs font-mono ${opponentTimeLeft < 10 ? 'text-red-500' : 'text-gray-400'}`}>{opponentTimeLeft}s</span>
+                    <span className={`text-xs font-mono ${opponentTimeLeft < 10 ? 'text-red-500' : 'text-gray-400'}`}>{Math.ceil(opponentTimeLeft)}s</span>
                   </div>
                </div>
              )}
@@ -418,7 +730,6 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* Grid Game */}
       <div className="flex-1 flex items-center justify-center p-2 w-full overflow-hidden relative">
         <div 
           className="relative z-10"
@@ -433,7 +744,7 @@ export const Game: React.FC<GameProps> = ({
         >
           <div ref={gridRef} className="w-full h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: '2px' }}>
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
-              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum ? 'border-red-500 bg-red-500/10' : 'border-cyan-200 bg-cyan-100/30'}`}
+              <div className={`absolute pointer-events-none border-4 rounded-xl z-50 transition-colors shadow-lg ${isValidSum || magicActive ? 'border-red-500 bg-red-500/10' : 'border-cyan-200 bg-cyan-100/30'}`}
                 style={{
                   left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
                   top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
@@ -457,7 +768,6 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
 
-      {/* Footer Controls */}
       <div className="shrink-0 h-14 flex items-center justify-between px-6 pb-2 w-full max-w-lg mx-auto">
          {!isMultiplayer ? (
            <button onClick={() => window.location.reload()} className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider backdrop-blur-sm transition-all active:scale-95">Chơi Lại</button>
@@ -470,8 +780,6 @@ export const Game: React.FC<GameProps> = ({
            {isMuted ? '🔇 Tắt Nhạc' : '🔊 Bật Nhạc'}
          </button>
       </div>
-      
-      {/* GLOBAL STYLES FOR ANIMATIONS */}
       <style>{`
         @keyframes streak-countdown { from { width: 100%; } to { width: 0%; } }
         @keyframes float-up { 
@@ -479,6 +787,12 @@ export const Game: React.FC<GameProps> = ({
           100% { opacity: 0; transform: translate(-50%, -40px) scale(1.5); } 
         }
         .animate-float-up { animation: float-up 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes emoji-pop {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+        }
+        .animate-emoji-pop { animation: emoji-pop 2s ease-out forwards; }
       `}</style>
     </div>
   );
