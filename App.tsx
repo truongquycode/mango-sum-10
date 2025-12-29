@@ -11,6 +11,37 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
+// --- CẤU HÌNH SERVER KẾT NỐI (QUAN TRỌNG) ---
+// Bao gồm cả STUN (Google) và TURN (OpenRelay) để xuyên 4G
+const PEER_CONFIG = {
+  config: {
+    iceServers: [
+      // 1. STUN Servers (Của Google - Giúp tìm IP Public)
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      
+      // 2. TURN Servers (OpenRelay - Giúp xuyên tường lửa 4G/Symmetric NAT)
+      // Lưu ý: Đây là server cộng đồng miễn phí, có thể chậm hoặc chập chờn tùy lúc.
+      // Nếu muốn ổn định 100%, bạn cần đăng ký tài khoản free tại metered.ca
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+    ]
+  }
+};
+
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [finalScore, setFinalScore] = useState(0);
@@ -27,7 +58,7 @@ export default function App() {
   
   // Tên & Avatar
   const [myName, setMyName] = useState("Bạn");
-  const [myAvatar, setMyAvatar] = useState(AVATARS[0]); // Mặc định
+  const [myAvatar, setMyAvatar] = useState(AVATARS[0]); 
   const [opponentName, setOpponentName] = useState("Đối thủ");
   const [opponentAvatar, setOpponentAvatar] = useState("👤");
 
@@ -72,7 +103,6 @@ export default function App() {
       console.log("Connected to peer:", connection.peer);
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
-      // Gửi cả tên và avatar khi kết nối
       connection.send({ type: 'START', payload: { name: myName, avatar: myAvatar } } as MultiPlayerMessage);
     };
 
@@ -127,22 +157,15 @@ export default function App() {
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
-  // --- CẤU HÌNH PEER CHO NGƯỜI TẠO PHÒNG (HOST) ---
+  // --- CẤU HÌNH PEER CHO HOST ---
   const initializePeer = () => {
     if (peerInstance.current) return; 
 
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    // THÊM CẤU HÌNH STUN SERVER
-    const newPeer = new Peer(fullId, {
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
-      }
-    });
+    // Sử dụng PEER_CONFIG đã khai báo ở trên
+    const newPeer = new Peer(fullId, PEER_CONFIG);
 
     peerInstance.current = newPeer;
 
@@ -166,12 +189,12 @@ export default function App() {
         setTimeout(initializePeer, 500); 
       } else {
         setIsConnecting(false);
-        alert("Lỗi máy chủ: " + err.type);
+        alert("Lỗi kết nối: " + err.type + ". Hãy thử tắt Wifi dùng 4G hoặc ngược lại.");
       }
     });
   };
 
-  // --- CẤU HÌNH PEER CHO NGƯỜI VÀO PHÒNG (JOINER) ---
+  // --- CẤU HÌNH PEER CHO JOINER ---
   const connectToPeer = (shortCode: string) => {
     setIsConnecting(true); 
     const performConnect = (peerToUse: Peer) => {
@@ -186,15 +209,8 @@ export default function App() {
     };
 
     if (!peerInstance.current) {
-        // THÊM CẤU HÌNH STUN SERVER
-        const tempPeer = new Peer(undefined, {
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
-          }
-        });
+        // Sử dụng PEER_CONFIG đã khai báo ở trên
+        const tempPeer = new Peer(undefined, PEER_CONFIG);
 
         peerInstance.current = tempPeer;
         setPeer(tempPeer);
@@ -247,7 +263,6 @@ export default function App() {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
-    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
@@ -312,7 +327,6 @@ export default function App() {
         />
       )}
 
-      {/* Màn hình Lịch sử */}
       {gameState === GameState.HISTORY && (
           <HistoryScreen onBack={() => setGameState(GameState.MENU)} />
       )}
