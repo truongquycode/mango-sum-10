@@ -12,17 +12,17 @@ import { AVATARS } from './constants';
 import { db } from './firebaseConfig';
 import { ref, set, update, onValue, push, remove, onDisconnect, child, get, serverTimestamp } from "firebase/database";
 
-const ID_PREFIX = 'mango-v1-vn-'; 
-
-// Giả lập đối tượng kết nối để tương thích với Game.tsx
+// Giả lập đối tượng kết nối để không phải sửa Game.tsx
 interface MockConnection {
   send: (data: any) => void;
   on: (event: string, callback: (data: any) => void) => void;
   off: (event: string) => void;
   close: () => void;
-  open: boolean; // Thêm thuộc tính open
-  peerConnection?: any; // Thêm để tránh lỗi access property
+  open: boolean;
+  peerConnection?: any;
 }
+
+const ID_PREFIX = 'mango-v1-vn-'; 
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -93,19 +93,12 @@ export default function App() {
       const data = snapshot.val();
       if (data) {
         const msgKeys = Object.keys(data);
-        // Chỉ lấy tin nhắn mới nhất (hoặc xử lý logic queue nếu cần, nhưng game này realtime đơn giản)
-        // Ở đây ta duyệt qua các tin nhắn mới thêm vào nếu dùng child_added sẽ tốt hơn, 
-        // nhưng onValue đơn giản cho demo.
-        // Cải tiến: Dùng timestamp hoặc ID để tránh xử lý lại.
-        // Cách đơn giản nhất cho game turn-based/realtime này:
         const lastKey = msgKeys[msgKeys.length - 1];
         const lastMsg = data[lastKey];
 
-        // Quan trọng: Chỉ nhận tin từ ĐỐI PHƯƠNG (người khác role với mình)
-        // và tin nhắn phải mới (có thể check timestamp > thời điểm vào phòng)
+        // Chỉ nhận tin từ ĐỐI PHƯƠNG
         if (lastMsg && lastMsg.sender !== role) {
-           // Hack nhỏ: Đánh dấu đã xử lý local hoặc chỉ trigger nếu chưa xử lý
-           // Để đơn giản, ta trigger luôn. Game logic sẽ tự lọc (ví dụ update score)
+           // Gọi callback data
            listeners['data']?.forEach(cb => cb(lastMsg.payload));
         }
       }
@@ -125,7 +118,7 @@ export default function App() {
       on: (event: string, callback: Function) => {
         if (!listeners[event]) listeners[event] = [];
         listeners[event].push(callback);
-        // Nếu đăng ký sự kiện open, gọi ngay lập tức vì Firebase luôn online
+        // Gọi open ngay lập tức vì Firebase luôn online
         if (event === 'open') setTimeout(() => callback(), 100);
       },
 
@@ -161,7 +154,7 @@ export default function App() {
       status: 'OPEN'
     });
 
-    // Tự động xóa phòng khi mất kết nối
+    // Tự động xóa phòng khi mất kết nối (để không rác database)
     onDisconnect(roomRef).remove();
 
     // Lắng nghe người vào (Guest)
@@ -203,9 +196,12 @@ export default function App() {
         }
 
         const roomData = snapshot.val();
-        if (roomData.status !== 'OPEN' && !roomData.guest) {
+        // Nếu phòng không OPEN hoặc đã có guest
+        if (roomData.status !== 'OPEN' && (!roomData.guest || roomData.guest.name === myName)) {
+             // Logic lỏng lẻo 1 chút để rejoin nếu cần
+        } else if (roomData.guest) {
              setIsConnecting(false);
-             return alert("Phòng đã đầy hoặc đang chơi!");
+             return alert("Phòng đã đầy!");
         }
 
         // Cập nhật thông tin Host
@@ -220,7 +216,6 @@ export default function App() {
             status: 'PLAYING'
         });
         
-        // Đăng ký xóa thông tin mình khi thoát
         onDisconnect(child(roomRef, 'guest')).remove();
 
         const connection = createFirebaseConnection(inputRoomId, 'guest');
@@ -235,7 +230,7 @@ export default function App() {
     } catch (error) {
         console.error(error);
         setIsConnecting(false);
-        alert("Lỗi kết nối Server!");
+        alert("Lỗi kết nối Server! Kiểm tra lại mạng.");
     }
   };
 
@@ -251,9 +246,6 @@ export default function App() {
         setOpponentScore(msg.payload.score);
       } else if (msg.type === 'READY') {
         setIsOpponentReady(true);
-      } else if (msg.type === 'REQUEST_MAP' && isHost) {
-        // App.tsx không giữ state Grid, nên việc này sẽ do Game.tsx xử lý thông qua props connection
-        // Nhưng vì MockConnection đã forward event 'data', Game.tsx sẽ nhận được và tự xử lý.
       }
     });
   };
@@ -279,6 +271,7 @@ export default function App() {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
+    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),

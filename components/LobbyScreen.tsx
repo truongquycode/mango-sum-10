@@ -1,3 +1,4 @@
+// components/LobbyScreen.tsx
 import React, { useState, useRef, useEffect } from 'react'; 
 import { Button } from './UI/Button';
 import { AVATARS } from '../constants';
