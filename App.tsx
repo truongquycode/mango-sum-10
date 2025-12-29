@@ -14,27 +14,30 @@ const ID_PREFIX = 'mango-v1-vn-';
 const PEER_CONFIG = {
   config: {
     iceServers: [
-      // 1. STUN Servers (Google & Twilio - Giúp tìm IP)
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' },
-      
-      // 2. TURN Servers (Metered.ca - Key riêng của bạn để xuyên 4G)
       {
-        urls: "turn:global.turn.metered.ca:80",
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:global.turn.metered.ca:443",
+        urls: "turn:global.relay.metered.ca:80?transport=tcp",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:global.turn.metered.ca:443?transport=tcp",
+        urls: "turn:global.relay.metered.ca:443",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
-    ]
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        username: "75f2e0223b2f2c0f1252807c",
+        credential: "B2M8G/eb5kzcQLWr",
+      },
+  ],
   }
 };
 
