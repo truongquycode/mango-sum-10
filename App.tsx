@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, MultiPlayerMessage, MatchRecord } from './types';
 import { StartScreen } from './components/StartScreen';
@@ -11,26 +10,27 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
-// --- CẤU HÌNH SERVER XUYÊN 4G (QUAN TRỌNG) ---
-// Dùng server OpenRelay miễn phí để test. 
-// Nếu chập chờn, bạn hãy đăng ký Metered.ca như hướng dẫn trước để lấy key riêng.
+// --- CẤU HÌNH SERVER KẾT NỐI (Dùng Key Riêng Metered.ca của bạn) ---
 const PEER_CONFIG = {
   config: {
     iceServers: [
+      // 1. STUN Servers (Google & Twilio - Giúp tìm IP)
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:global.stun.twilio.com:3478' },
+      
+      // 2. TURN Servers (Metered.ca - Key riêng của bạn để xuyên 4G)
       {
-        urls: "turn:openrelay.metered.ca:80",
+        urls: "turn:global.turn.metered.ca:80",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:openrelay.metered.ca:443",
+        urls: "turn:global.turn.metered.ca:443",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        urls: "turn:global.turn.metered.ca:443?transport=tcp",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
@@ -161,7 +161,7 @@ export default function App() {
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    // Dùng config có STUN/TURN
+    // Dùng config Metered.ca
     const newPeer = new Peer(fullId, PEER_CONFIG);
 
     peerInstance.current = newPeer;
@@ -209,7 +209,7 @@ export default function App() {
     };
 
     if (!peerInstance.current) {
-        // Người join không cần ID cố định, nhưng cần Config để xuyên 4G
+        // Người join cũng cần PEER_CONFIG để xuyên 4G
         const tempPeer = new Peer(undefined, PEER_CONFIG);
 
         peerInstance.current = tempPeer;
