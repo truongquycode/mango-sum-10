@@ -21,18 +21,18 @@ const PEER_CONFIG = {
       { urls: 'stun:global.stun.twilio.com:3478' },
       {
         urls: "turn:openrelay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        username: "75f2e0223b2f2c0f1252807c",
+        credential: "B2M8G/eb5kzcQLWr",
       },
       {
         urls: "turn:openrelay.metered.ca:443",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        username: "75f2e0223b2f2c0f1252807c",
+        credential: "B2M8G/eb5kzcQLWr",
       },
       {
         urls: "turn:openrelay.metered.ca:443?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
+        username: "75f2e0223b2f2c0f1252807c",
+        credential: "B2M8G/eb5kzcQLWr",
       },
     ]
   }
