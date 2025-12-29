@@ -1,11 +1,11 @@
 // App.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, MultiPlayerMessage, MatchRecord } from './types'; // Import MatchRecord
+import { GameState, MultiPlayerMessage, MatchRecord } from './types';
 import { StartScreen } from './components/StartScreen';
 import { Game } from './components/Game';
 import { GameOverScreen } from './components/GameOverScreen';
 import { LobbyScreen } from './components/LobbyScreen';
-import { HistoryScreen } from './components/HistoryScreen'; // Import HistoryScreen
+import { HistoryScreen } from './components/HistoryScreen';
 import Peer, { DataConnection } from 'peerjs';
 import { AVATARS } from './constants';
 
@@ -87,14 +87,13 @@ export default function App() {
       
       if (msg.type === 'START') {
         if (msg.payload?.name) setOpponentName(msg.payload.name);
-        if (msg.payload?.avatar) setOpponentAvatar(msg.payload.avatar); // Nhận avatar đối thủ
+        if (msg.payload?.avatar) setOpponentAvatar(msg.payload.avatar);
       } else if (msg.type === 'UPDATE_SCORE') {
         if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
       } else if (msg.type === 'SYNC_MAP') {
         if (msg.payload.opponentName) setOpponentName(msg.payload.opponentName);
         if (msg.payload.opponentAvatar) setOpponentAvatar(msg.payload.opponentAvatar);
       } else if (msg.type === 'GRID_UPDATE') {
-        // Cập nhật thông tin nếu có trong grid update
         if (msg.payload.opponentName) setOpponentName(msg.payload.opponentName);
         if (msg.payload.opponentAvatar) setOpponentAvatar(msg.payload.opponentAvatar);
         if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
@@ -103,11 +102,10 @@ export default function App() {
       } else if (msg.type === 'READY') {
         setIsOpponentReady(true);
       } else if (msg.type === 'REQUEST_MAP' && isHost) {
-        // Khi gửi map, gửi kèm cả thông tin của mình
         connection.send({ 
             type: 'GRID_UPDATE', 
             payload: { 
-                grid: [], // Game.tsx sẽ điền grid thực tế vào
+                grid: [], 
                 score: 0, 
                 opponentName: myName,
                 opponentAvatar: myAvatar 
@@ -129,13 +127,23 @@ export default function App() {
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
+  // --- CẤU HÌNH PEER CHO NGƯỜI TẠO PHÒNG (HOST) ---
   const initializePeer = () => {
     if (peerInstance.current) return; 
 
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    const newPeer = new Peer(fullId);
+    // THÊM CẤU HÌNH STUN SERVER
+    const newPeer = new Peer(fullId, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
+    });
+
     peerInstance.current = newPeer;
 
     newPeer.on('open', (id) => {
@@ -163,6 +171,7 @@ export default function App() {
     });
   };
 
+  // --- CẤU HÌNH PEER CHO NGƯỜI VÀO PHÒNG (JOINER) ---
   const connectToPeer = (shortCode: string) => {
     setIsConnecting(true); 
     const performConnect = (peerToUse: Peer) => {
@@ -177,7 +186,16 @@ export default function App() {
     };
 
     if (!peerInstance.current) {
-        const tempPeer = new Peer();
+        // THÊM CẤU HÌNH STUN SERVER
+        const tempPeer = new Peer(undefined, {
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
+        });
+
         peerInstance.current = tempPeer;
         setPeer(tempPeer);
         tempPeer.on('open', () => performConnect(tempPeer));
@@ -215,7 +233,6 @@ export default function App() {
     connectToPeer(hostCode);
   };
 
-  // --- CẬP NHẬT: Handle GameOver lưu lịch sử ---
   const handleGameOver = (score: number, itemsUsedStats: Record<string, number>) => {
     setFinalScore(score);
     if (!isMultiplayer) {
@@ -226,12 +243,11 @@ export default function App() {
     }
     setGameState(GameState.GAME_OVER);
     
-    // Gửi điểm cho đối thủ
     if (isMultiplayer && conn) {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
-    // --- LƯU LỊCH SỬ ---
+    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
@@ -246,7 +262,6 @@ export default function App() {
     const currentHistory = localStorage.getItem('mango-match-history');
     let history: MatchRecord[] = currentHistory ? JSON.parse(currentHistory) : [];
     history.push(newRecord);
-    // Giới hạn lưu 20 trận gần nhất để không đầy bộ nhớ
     if (history.length > 20) history = history.slice(history.length - 20);
     localStorage.setItem('mango-match-history', JSON.stringify(history));
   };
@@ -292,12 +307,12 @@ export default function App() {
         <StartScreen 
           onStart={handleStartSolo} 
           onMultiplayer={handleOpenLobby}
-          onOpenHistory={() => setGameState(GameState.HISTORY)} // Thêm dòng này
+          onOpenHistory={() => setGameState(GameState.HISTORY)}
           highScore={highScore} 
         />
       )}
 
-      {/* Màn hình Lịch sử Mới */}
+      {/* Màn hình Lịch sử */}
       {gameState === GameState.HISTORY && (
           <HistoryScreen onBack={() => setGameState(GameState.MENU)} />
       )}
