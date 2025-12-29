@@ -10,22 +10,23 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
-// --- CẤU HÌNH SERVER KẾT NỐI (FORCE RELAY) ---
+// --- CẤU HÌNH SERVER KẾT NỐI (Dùng TURNS - Secure) ---
 const PEER_CONFIG = {
-  debug: 1, // Giảm log để đỡ rối
+  debug: 1,
   config: {
-    // QUAN TRỌNG: Dòng này ép buộc đi qua Server TURN, bỏ qua P2P trực tiếp
-    // Giúp khắc phục lỗi 4G không thông với Wifi
-    iceTransportPolicy: 'relay', 
-    
     iceServers: [
+      // 1. STUN Servers (Google - Để tìm IP)
+      { urls: 'stun:stun.l.google.com:19302' },
+      
+      // 2. TURNS Servers (Secure TURN - Quan trọng nhất cho 4G)
+      // Dùng giao thức 'turns:' để mã hóa gói tin như HTTPS -> Nhà mạng không chặn được
       {
-        urls: "turn:global.turn.metered.ca:80",
+        urls: "turns:global.turn.metered.ca:443?transport=tcp",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:global.turn.metered.ca:443",
+        urls: "turn:global.turn.metered.ca:80?transport=udp",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
@@ -76,7 +77,6 @@ export default function App() {
     const savedAvatar = localStorage.getItem('mango-player-avatar');
     if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
 
-    // Cleanup
     return () => {
       if (peerInstance.current) peerInstance.current.destroy();
     }
@@ -101,7 +101,6 @@ export default function App() {
 
   // --- PeerJS Logic ---
   const setupConnectionListeners = (connection: DataConnection) => {
-    // Clear timeout nếu có (dành cho người Join)
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
 
     setConn(connection);
@@ -110,23 +109,25 @@ export default function App() {
       console.log(">> KẾT NỐI THÀNH CÔNG! (Data Channel Open)");
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
-      // Gửi thông tin cá nhân ngay khi kết nối
       connection.send({ type: 'START', payload: { name: myName, avatar: myAvatar } } as MultiPlayerMessage);
     };
 
-    // Fix lỗi race condition: Kiểm tra nếu open rồi thì gọi luôn
+    // Fix lỗi race condition
     if (connection.open) { 
         handleOpen(); 
     } else { 
         connection.on('open', handleOpen); 
     }
 
-    // Log trạng thái ICE để debug nếu cần
+    // Lắng nghe lỗi ngầm (ICE Failed)
     connection.peerConnection?.addEventListener('iceconnectionstatechange', () => {
-        console.log(`ICE State: ${connection.peerConnection?.iceConnectionState}`);
-        if (connection.peerConnection?.iceConnectionState === 'disconnected' || connection.peerConnection?.iceConnectionState === 'failed') {
-            alert("Mất kết nối mạng! Đang thử kết nối lại...");
-            handleGoHome();
+        const state = connection.peerConnection?.iceConnectionState;
+        console.log(`ICE State: ${state}`);
+        if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+            if (gameState === GameState.PLAYING || isConnecting) {
+                alert("Mất kết nối với đối thủ! (Lỗi mạng)");
+                handleGoHome();
+            }
         }
     });
 
@@ -177,19 +178,18 @@ export default function App() {
 
   // --- TẠO PHÒNG (HOST) ---
   const initializePeer = () => {
-    // Reset sạch sẽ trước khi tạo mới
     if (peerInstance.current) peerInstance.current.destroy();
 
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    // Ép kiểu any để tránh lỗi TypeScript với config iceTransportPolicy
+    // Ép kiểu any để tránh lỗi TypeScript config
     const newPeer = new Peer(fullId, PEER_CONFIG as any);
 
     peerInstance.current = newPeer;
 
     newPeer.on('open', (id) => {
-      console.log('ID của tôi:', id);
+      console.log('ID Host:', id);
       setPeer(newPeer);
       setDisplayId(shortCode);
     });
@@ -219,26 +219,27 @@ export default function App() {
 
     setIsConnecting(true);
     
-    // Timeout an toàn: Nếu 15s mà không kết nối được thì báo lỗi
+    // Tăng thời gian chờ lên 20s cho mạng chậm
     connectionTimeoutRef.current = setTimeout(() => {
         setIsConnecting(false);
-        alert("Không thể kết nối! Hãy kiểm tra mã phòng hoặc thử lại.");
+        alert("Kết nối quá lâu! Vui lòng kiểm tra lại mã hoặc mạng.");
         if (peerInstance.current) peerInstance.current.destroy();
-    }, 15000);
+    }, 20000);
 
     const performConnect = (peerToUse: Peer) => {
         const fullHostId = ID_PREFIX + shortCode;
-        console.log("Đang tìm:", fullHostId);
+        console.log("Đang kết nối tới:", fullHostId);
         setIsHost(false);
         
+        // Thêm serialization: 'json' để tránh lỗi định dạng dữ liệu
         const connection = peerToUse.connect(fullHostId, {
             metadata: { name: myName },
-            reliable: true 
+            reliable: true,
+            serialization: 'json' 
         });
         setupConnectionListeners(connection);
     };
 
-    // Ép kiểu any cho config
     const tempPeer = new Peer(undefined, PEER_CONFIG as any);
     peerInstance.current = tempPeer;
     setPeer(tempPeer);
@@ -247,7 +248,7 @@ export default function App() {
     tempPeer.on('error', (err) => {
         if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
         setIsConnecting(false);
-        alert("Lỗi kết nối: " + err.type);
+        alert("Không tìm thấy phòng hoặc lỗi mạng: " + err.type);
     });
   };
 
@@ -287,7 +288,6 @@ export default function App() {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
-    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
