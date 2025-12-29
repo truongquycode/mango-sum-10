@@ -134,34 +134,80 @@ export const Game: React.FC<GameProps> = ({
 
   // --- AUDIO ---
   useEffect(() => {
+    // 1. Khởi tạo Audio Context (cho hiệu ứng âm thanh)
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const audio = new Audio('/assets/bgm.mp3'); 
-    audio.loop = true;
-    audio.volume = 0.3; 
-    bgmRef.current = audio;
-    const forcePlayMusic = () => {
-      if (bgmRef.current && !isMuted && bgmRef.current.paused) {
-        bgmRef.current.play().catch(() => {});
-      }
-      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
-    };
-    if (!isMuted) {
-      const playPromise = bgmRef.current.play();
-      if (playPromise !== undefined) playPromise.catch(() => {
-          document.addEventListener('click', forcePlayMusic, {once:true});
-          document.addEventListener('touchstart', forcePlayMusic, {once:true});
-      });
-    }
-    return () => {
-      bgmRef.current?.pause();
-      if (audioContextRef.current) audioContextRef.current.close();
-    };
-  }, []);
 
+    // 2. Random nhạc nền
+    const totalTracks = 5; 
+    const randomTrackId = Math.floor(Math.random() * totalTracks) + 1;
+    const audioPath = `/assets/${randomTrackId}.mp3`;
+    
+    console.log(`🎵 Đang tải nhạc nền: ${audioPath}`);
+
+    const audio = new Audio(audioPath);
+    audio.loop = true;
+    audio.volume = 0.3;
+    bgmRef.current = audio;
+
+    // 3. Hàm thử phát nhạc
+    const tryPlayMusic = async () => {
+      if (!bgmRef.current || isMuted) return;
+      
+      try {
+        await bgmRef.current.play();
+        console.log("✅ Nhạc nền đang phát!");
+      } catch (err) {
+        console.warn("⚠️ Trình duyệt chặn Autoplay. Đợi người dùng tương tác...");
+        // Nếu bị chặn, thêm sự kiện click để phát lại ngay lập tức
+        const resumeAudio = () => {
+          if (bgmRef.current && !isMuted) {
+            bgmRef.current.play().catch(e => console.error("Vẫn lỗi:", e));
+            // Resume cả hiệu ứng âm thanh (Synth)
+            if (audioContextRef.current?.state === 'suspended') {
+              audioContextRef.current.resume();
+            }
+          }
+          // Xóa sự kiện sau khi đã click 1 lần
+          document.removeEventListener('click', resumeAudio);
+          document.removeEventListener('touchstart', resumeAudio);
+          document.removeEventListener('keydown', resumeAudio);
+        };
+
+        document.addEventListener('click', resumeAudio);
+        document.addEventListener('touchstart', resumeAudio);
+        document.addEventListener('keydown', resumeAudio);
+      }
+    };
+
+    // 4. Chạy nhạc nếu không Mute
+    if (!isMuted) {
+      tryPlayMusic();
+    }
+
+    // Cleanup khi thoát game
+    return () => {
+      if (bgmRef.current) {
+        bgmRef.current.pause();
+        bgmRef.current.currentTime = 0;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Xử lý nút Bật/Tắt nhạc
   useEffect(() => {
     if (bgmRef.current) {
-      if (isMuted) bgmRef.current.pause();
-      else bgmRef.current.play().catch(() => {});
+      if (isMuted) {
+        bgmRef.current.pause();
+      } else {
+        // Khi bật lại, thử phát lại. Nếu AudioContext bị treo thì resume nó
+        bgmRef.current.play().catch(() => {});
+        if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+      }
     }
   }, [isMuted]);
 
