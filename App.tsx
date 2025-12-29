@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, MultiPlayerMessage, MatchRecord } from './types';
 import { StartScreen } from './components/StartScreen';
@@ -11,9 +10,14 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
-// Cấu hình từ Metered.ca (Đã kiểm tra đúng)
+// --- CẤU HÌNH SERVER KẾT NỐI (FORCE RELAY) ---
 const PEER_CONFIG = {
+  debug: 1, // Giảm log để đỡ rối
   config: {
+    // QUAN TRỌNG: Dòng này ép buộc đi qua Server TURN, bỏ qua P2P trực tiếp
+    // Giúp khắc phục lỗi 4G không thông với Wifi
+    iceTransportPolicy: 'relay', 
+    
     iceServers: [
       {
         urls: "turn:global.turn.metered.ca:80",
@@ -30,7 +34,6 @@ const PEER_CONFIG = {
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
-      { urls: 'stun:stun.l.google.com:19302' },
     ]
   }
 };
@@ -40,13 +43,16 @@ export default function App() {
   const [finalScore, setFinalScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
 
+  // Multiplayer State
   const [peer, setPeer] = useState<Peer | null>(null);
   const [displayId, setDisplayId] = useState<string | null>(null);
+  
   const [conn, setConn] = useState<DataConnection | null>(null);
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
+  // Tên & Avatar
   const [myName, setMyName] = useState("Bạn");
   const [myAvatar, setMyAvatar] = useState(AVATARS[0]);
   const [opponentName, setOpponentName] = useState("Đối thủ");
@@ -57,8 +63,9 @@ export default function App() {
   const [isHost, setIsHost] = useState(false);
 
   const peerInstance = useRef<Peer | null>(null);
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Mới: Timeout
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load dữ liệu cũ
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
     if (saved) setHighScore(parseInt(saved, 10));
@@ -69,12 +76,13 @@ export default function App() {
     const savedAvatar = localStorage.getItem('mango-player-avatar');
     if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
 
-    // Cleanup khi đóng web
+    // Cleanup
     return () => {
-        if (peerInstance.current) peerInstance.current.destroy();
-    };
+      if (peerInstance.current) peerInstance.current.destroy();
+    }
   }, []);
 
+  // Tự động start khi cả 2 ready
   useEffect(() => {
     if (isMultiplayer && gameState === GameState.GAME_OVER) {
       if (isMeReady && isOpponentReady) {
@@ -91,23 +99,40 @@ export default function App() {
     setIsOpponentReady(false);
   };
 
+  // --- PeerJS Logic ---
   const setupConnectionListeners = (connection: DataConnection) => {
-    // Xóa timeout nếu kết nối thành công
+    // Clear timeout nếu có (dành cho người Join)
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
 
     setConn(connection);
     
     const handleOpen = () => {
-      console.log(">> KẾT NỐI THÀNH CÔNG!");
+      console.log(">> KẾT NỐI THÀNH CÔNG! (Data Channel Open)");
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
+      // Gửi thông tin cá nhân ngay khi kết nối
       connection.send({ type: 'START', payload: { name: myName, avatar: myAvatar } } as MultiPlayerMessage);
     };
 
-    if (connection.open) { handleOpen(); } else { connection.on('open', handleOpen); }
+    // Fix lỗi race condition: Kiểm tra nếu open rồi thì gọi luôn
+    if (connection.open) { 
+        handleOpen(); 
+    } else { 
+        connection.on('open', handleOpen); 
+    }
+
+    // Log trạng thái ICE để debug nếu cần
+    connection.peerConnection?.addEventListener('iceconnectionstatechange', () => {
+        console.log(`ICE State: ${connection.peerConnection?.iceConnectionState}`);
+        if (connection.peerConnection?.iceConnectionState === 'disconnected' || connection.peerConnection?.iceConnectionState === 'failed') {
+            alert("Mất kết nối mạng! Đang thử kết nối lại...");
+            handleGoHome();
+        }
+    });
 
     connection.on('data', (data: any) => {
       const msg = data as MultiPlayerMessage;
+      
       if (msg.type === 'START') {
         if (msg.payload?.name) setOpponentName(msg.payload.name);
         if (msg.payload?.avatar) setOpponentAvatar(msg.payload.avatar);
@@ -127,24 +152,40 @@ export default function App() {
       } else if (msg.type === 'REQUEST_MAP' && isHost) {
         connection.send({ 
             type: 'GRID_UPDATE', 
-            payload: { grid: [], score: 0, opponentName: myName, opponentAvatar: myAvatar } 
+            payload: { 
+                grid: [], 
+                score: 0, 
+                opponentName: myName,
+                opponentAvatar: myAvatar 
+            } 
         } as MultiPlayerMessage);
       }
     });
 
-    connection.on('close', () => { alert("Đối thủ đã thoát!"); handleGoHome(); });
-    connection.on('error', (err) => { console.error("Lỗi kết nối:", err); handleGoHome(); });
+    connection.on('close', () => {
+      alert("Đối thủ đã thoát!");
+      handleGoHome();
+    });
+
+    connection.on('error', (err) => {
+        console.error("Lỗi kết nối:", err);
+        handleGoHome();
+    });
   };
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
+  // --- TẠO PHÒNG (HOST) ---
   const initializePeer = () => {
-    if (peerInstance.current) peerInstance.current.destroy(); // Hủy cái cũ nếu có
+    // Reset sạch sẽ trước khi tạo mới
+    if (peerInstance.current) peerInstance.current.destroy();
 
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    const newPeer = new Peer(fullId, PEER_CONFIG);
+    // Ép kiểu any để tránh lỗi TypeScript với config iceTransportPolicy
+    const newPeer = new Peer(fullId, PEER_CONFIG as any);
+
     peerInstance.current = newPeer;
 
     newPeer.on('open', (id) => {
@@ -154,12 +195,13 @@ export default function App() {
     });
 
     newPeer.on('connection', (connection) => {
-      console.log("Có người đang vào...");
+      console.log("Có người đang vào... (Handshake)");
       setIsHost(true);
       setupConnectionListeners(connection);
     });
 
     newPeer.on('error', (err) => {
+      console.error('Peer error:', err);
       if (err.type === 'unavailable-id') {
         peerInstance.current = null;
         setPeer(null);
@@ -171,15 +213,17 @@ export default function App() {
     });
   };
 
+  // --- VÀO PHÒNG (JOINER) ---
   const connectToPeer = (shortCode: string) => {
-    if (peerInstance.current) peerInstance.current.destroy(); // Reset peer cũ
+    if (peerInstance.current) peerInstance.current.destroy(); 
 
     setIsConnecting(true);
     
-    // Đặt timeout 15s, nếu không được thì báo lỗi
+    // Timeout an toàn: Nếu 15s mà không kết nối được thì báo lỗi
     connectionTimeoutRef.current = setTimeout(() => {
         setIsConnecting(false);
-        alert("Không tìm thấy phòng hoặc kết nối quá lâu. Hãy thử tải lại trang cả 2 máy!");
+        alert("Không thể kết nối! Hãy kiểm tra mã phòng hoặc thử lại.");
+        if (peerInstance.current) peerInstance.current.destroy();
     }, 15000);
 
     const performConnect = (peerToUse: Peer) => {
@@ -194,7 +238,8 @@ export default function App() {
         setupConnectionListeners(connection);
     };
 
-    const tempPeer = new Peer(undefined, PEER_CONFIG);
+    // Ép kiểu any cho config
+    const tempPeer = new Peer(undefined, PEER_CONFIG as any);
     peerInstance.current = tempPeer;
     setPeer(tempPeer);
     
@@ -206,6 +251,7 @@ export default function App() {
     });
   };
 
+  // --- GAME FLOW HANDLERS ---
   const handleStartSolo = () => {
     setIsMultiplayer(false);
     setIsHost(true);
@@ -241,6 +287,7 @@ export default function App() {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
+    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
