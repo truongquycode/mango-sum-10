@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, MultiPlayerMessage, MatchRecord } from './types';
 import { StartScreen } from './components/StartScreen';
@@ -10,13 +11,10 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
-// --- CẤU HÌNH SERVER KẾT NỐI (Đã tối ưu cho 4G) ---
+// Cấu hình từ Metered.ca (Đã kiểm tra đúng)
 const PEER_CONFIG = {
-  debug: 2, // Bật log lỗi nhẹ để dễ kiểm tra
   config: {
     iceServers: [
-      // 1. ƯU TIÊN TURN SERVER (Metered.ca) LÊN ĐẦU
-      // Giúp xuyên tường lửa 4G ngay lập tức
       {
         urls: "turn:global.turn.metered.ca:80",
         username: "75f2e0223b2f2c0f1252807c",
@@ -32,10 +30,7 @@ const PEER_CONFIG = {
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
-      
-      // 2. STUN Servers (Dự phòng)
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' },
     ]
   }
 };
@@ -45,16 +40,13 @@ export default function App() {
   const [finalScore, setFinalScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
 
-  // Multiplayer State
   const [peer, setPeer] = useState<Peer | null>(null);
   const [displayId, setDisplayId] = useState<string | null>(null);
-  
   const [conn, setConn] = useState<DataConnection | null>(null);
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Tên & Avatar
   const [myName, setMyName] = useState("Bạn");
   const [myAvatar, setMyAvatar] = useState(AVATARS[0]);
   const [opponentName, setOpponentName] = useState("Đối thủ");
@@ -65,6 +57,7 @@ export default function App() {
   const [isHost, setIsHost] = useState(false);
 
   const peerInstance = useRef<Peer | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Mới: Timeout
 
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
@@ -75,6 +68,11 @@ export default function App() {
 
     const savedAvatar = localStorage.getItem('mango-player-avatar');
     if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
+
+    // Cleanup khi đóng web
+    return () => {
+        if (peerInstance.current) peerInstance.current.destroy();
+    };
   }, []);
 
   useEffect(() => {
@@ -93,15 +91,16 @@ export default function App() {
     setIsOpponentReady(false);
   };
 
-  // --- PeerJS Logic ---
   const setupConnectionListeners = (connection: DataConnection) => {
+    // Xóa timeout nếu kết nối thành công
+    if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+
     setConn(connection);
     
     const handleOpen = () => {
-      console.log("Đã kết nối với:", connection.peer);
+      console.log(">> KẾT NỐI THÀNH CÔNG!");
       setIsConnecting(false);
       setGameState(GameState.PLAYING);
-      // Gửi thông tin cá nhân ngay khi kết nối
       connection.send({ type: 'START', payload: { name: myName, avatar: myAvatar } } as MultiPlayerMessage);
     };
 
@@ -109,7 +108,6 @@ export default function App() {
 
     connection.on('data', (data: any) => {
       const msg = data as MultiPlayerMessage;
-      
       if (msg.type === 'START') {
         if (msg.payload?.name) setOpponentName(msg.payload.name);
         if (msg.payload?.avatar) setOpponentAvatar(msg.payload.avatar);
@@ -129,39 +127,24 @@ export default function App() {
       } else if (msg.type === 'REQUEST_MAP' && isHost) {
         connection.send({ 
             type: 'GRID_UPDATE', 
-            payload: { 
-                grid: [], 
-                score: 0, 
-                opponentName: myName,
-                opponentAvatar: myAvatar 
-            } 
+            payload: { grid: [], score: 0, opponentName: myName, opponentAvatar: myAvatar } 
         } as MultiPlayerMessage);
       }
     });
 
-    connection.on('close', () => {
-      alert("Đối thủ đã thoát!");
-      handleGoHome();
-    });
-
-    connection.on('error', (err) => {
-        console.error("Lỗi kết nối:", err);
-        handleGoHome();
-    });
+    connection.on('close', () => { alert("Đối thủ đã thoát!"); handleGoHome(); });
+    connection.on('error', (err) => { console.error("Lỗi kết nối:", err); handleGoHome(); });
   };
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
-  // --- TẠO PHÒNG (HOST) ---
   const initializePeer = () => {
-    if (peerInstance.current) return; 
+    if (peerInstance.current) peerInstance.current.destroy(); // Hủy cái cũ nếu có
 
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
-    // Dùng config Metered.ca
     const newPeer = new Peer(fullId, PEER_CONFIG);
-
     peerInstance.current = newPeer;
 
     newPeer.on('open', (id) => {
@@ -171,31 +154,37 @@ export default function App() {
     });
 
     newPeer.on('connection', (connection) => {
-      console.log("Có người kết nối vào...");
+      console.log("Có người đang vào...");
       setIsHost(true);
       setupConnectionListeners(connection);
     });
 
     newPeer.on('error', (err) => {
-      console.error('Peer error:', err);
       if (err.type === 'unavailable-id') {
         peerInstance.current = null;
         setPeer(null);
         setTimeout(initializePeer, 500); 
       } else {
         setIsConnecting(false);
-        alert("Lỗi mạng (Host): " + err.type);
+        alert("Lỗi tạo phòng: " + err.type);
       }
     });
   };
 
-  // --- VÀO PHÒNG (JOINER) ---
   const connectToPeer = (shortCode: string) => {
-    setIsConnecting(true); 
+    if (peerInstance.current) peerInstance.current.destroy(); // Reset peer cũ
+
+    setIsConnecting(true);
     
+    // Đặt timeout 15s, nếu không được thì báo lỗi
+    connectionTimeoutRef.current = setTimeout(() => {
+        setIsConnecting(false);
+        alert("Không tìm thấy phòng hoặc kết nối quá lâu. Hãy thử tải lại trang cả 2 máy!");
+    }, 15000);
+
     const performConnect = (peerToUse: Peer) => {
         const fullHostId = ID_PREFIX + shortCode;
-        console.log("Đang kết nối tới:", fullHostId);
+        console.log("Đang tìm:", fullHostId);
         setIsHost(false);
         
         const connection = peerToUse.connect(fullHostId, {
@@ -205,28 +194,18 @@ export default function App() {
         setupConnectionListeners(connection);
     };
 
-    if (!peerInstance.current) {
-        // QUAN TRỌNG: Người join cũng phải dùng Config Metered
-        const tempPeer = new Peer(undefined, PEER_CONFIG);
-
-        peerInstance.current = tempPeer;
-        setPeer(tempPeer);
-        
-        tempPeer.on('open', () => performConnect(tempPeer));
-        tempPeer.on('error', (err) => {
-            setIsConnecting(false);
-            alert("Lỗi mạng (Join): Không thể kết nối server.");
-        });
-    } else {
-        if (!peerInstance.current.open) {
-             peerInstance.current.on('open', () => performConnect(peerInstance.current!));
-        } else {
-             performConnect(peerInstance.current);
-        }
-    }
+    const tempPeer = new Peer(undefined, PEER_CONFIG);
+    peerInstance.current = tempPeer;
+    setPeer(tempPeer);
+    
+    tempPeer.on('open', () => performConnect(tempPeer));
+    tempPeer.on('error', (err) => {
+        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+        setIsConnecting(false);
+        alert("Lỗi kết nối: " + err.type);
+    });
   };
 
-  // --- GAME FLOW HANDLERS ---
   const handleStartSolo = () => {
     setIsMultiplayer(false);
     setIsHost(true);
@@ -242,7 +221,7 @@ export default function App() {
 
   const handleJoinGame = (hostCode: string) => {
     if (!hostCode || hostCode.length !== 4) {
-        alert("Vui lòng nhập đúng mã 4 số!");
+        alert("Mã phòng phải là 4 số!");
         return;
     }
     connectToPeer(hostCode);
