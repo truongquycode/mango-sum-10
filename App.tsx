@@ -10,34 +10,33 @@ import { AVATARS } from './constants';
 
 const ID_PREFIX = 'mango-v1-vn-'; 
 
-// --- CẤU HÌNH SERVER KẾT NỐI (Dùng Key Riêng Metered.ca của bạn) ---
+// --- CẤU HÌNH SERVER KẾT NỐI (Đã tối ưu cho 4G) ---
 const PEER_CONFIG = {
+  debug: 2, // Bật log lỗi nhẹ để dễ kiểm tra
   config: {
     iceServers: [
+      // 1. ƯU TIÊN TURN SERVER (Metered.ca) LÊN ĐẦU
+      // Giúp xuyên tường lửa 4G ngay lập tức
       {
-        urls: "stun:stun.relay.metered.ca:80",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:80",
+        urls: "turn:global.turn.metered.ca:80",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        urls: "turn:global.turn.metered.ca:443",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
       {
-        urls: "turn:global.relay.metered.ca:443",
+        urls: "turn:global.turn.metered.ca:443?transport=tcp",
         username: "75f2e0223b2f2c0f1252807c",
         credential: "B2M8G/eb5kzcQLWr",
       },
-      {
-        urls: "turns:global.relay.metered.ca:443?transport=tcp",
-        username: "75f2e0223b2f2c0f1252807c",
-        credential: "B2M8G/eb5kzcQLWr",
-      },
-  ],
+      
+      // 2. STUN Servers (Dự phòng)
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+    ]
   }
 };
 
@@ -67,7 +66,6 @@ export default function App() {
 
   const peerInstance = useRef<Peer | null>(null);
 
-  // Load dữ liệu cũ
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
     if (saved) setHighScore(parseInt(saved, 10));
@@ -79,7 +77,6 @@ export default function App() {
     if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
   }, []);
 
-  // Tự động start khi cả 2 ready
   useEffect(() => {
     if (isMultiplayer && gameState === GameState.GAME_OVER) {
       if (isMeReady && isOpponentReady) {
@@ -96,7 +93,7 @@ export default function App() {
     setIsOpponentReady(false);
   };
 
-  // --- PeerJS Logic (Xử lý kết nối) ---
+  // --- PeerJS Logic ---
   const setupConnectionListeners = (connection: DataConnection) => {
     setConn(connection);
     
@@ -130,11 +127,10 @@ export default function App() {
       } else if (msg.type === 'READY') {
         setIsOpponentReady(true);
       } else if (msg.type === 'REQUEST_MAP' && isHost) {
-        // Host gửi map cho người mới vào
         connection.send({ 
             type: 'GRID_UPDATE', 
             payload: { 
-                grid: [], // Game.tsx sẽ tự điền grid thực tế vào sau
+                grid: [], 
                 score: 0, 
                 opponentName: myName,
                 opponentAvatar: myAvatar 
@@ -160,7 +156,6 @@ export default function App() {
   const initializePeer = () => {
     if (peerInstance.current) return; 
 
-    // QUAN TRỌNG: Tạo ID ngắn 4 số để dễ nhập
     const shortCode = generateRandom4Digit();
     const fullId = ID_PREFIX + shortCode;
 
@@ -172,7 +167,7 @@ export default function App() {
     newPeer.on('open', (id) => {
       console.log('ID của tôi:', id);
       setPeer(newPeer);
-      setDisplayId(shortCode); // Chỉ hiển thị 4 số
+      setDisplayId(shortCode);
     });
 
     newPeer.on('connection', (connection) => {
@@ -186,10 +181,10 @@ export default function App() {
       if (err.type === 'unavailable-id') {
         peerInstance.current = null;
         setPeer(null);
-        setTimeout(initializePeer, 500); // Thử lại nếu ID trùng
+        setTimeout(initializePeer, 500); 
       } else {
         setIsConnecting(false);
-        alert("Lỗi mạng: " + err.type + ". Hãy thử chuyển Wifi/4G.");
+        alert("Lỗi mạng (Host): " + err.type);
       }
     });
   };
@@ -199,7 +194,6 @@ export default function App() {
     setIsConnecting(true); 
     
     const performConnect = (peerToUse: Peer) => {
-        // Tái tạo lại ID đầy đủ từ mã 4 số
         const fullHostId = ID_PREFIX + shortCode;
         console.log("Đang kết nối tới:", fullHostId);
         setIsHost(false);
@@ -212,7 +206,7 @@ export default function App() {
     };
 
     if (!peerInstance.current) {
-        // Người join cũng cần PEER_CONFIG để xuyên 4G
+        // QUAN TRỌNG: Người join cũng phải dùng Config Metered
         const tempPeer = new Peer(undefined, PEER_CONFIG);
 
         peerInstance.current = tempPeer;
@@ -221,7 +215,7 @@ export default function App() {
         tempPeer.on('open', () => performConnect(tempPeer));
         tempPeer.on('error', (err) => {
             setIsConnecting(false);
-            alert("Không thể tạo kết nối. Kiểm tra mạng.");
+            alert("Lỗi mạng (Join): Không thể kết nối server.");
         });
     } else {
         if (!peerInstance.current.open) {
@@ -248,7 +242,7 @@ export default function App() {
 
   const handleJoinGame = (hostCode: string) => {
     if (!hostCode || hostCode.length !== 4) {
-        alert("Mã phòng phải là 4 số!");
+        alert("Vui lòng nhập đúng mã 4 số!");
         return;
     }
     connectToPeer(hostCode);
@@ -268,7 +262,6 @@ export default function App() {
       conn.send({ type: 'GAME_OVER', payload: { score } } as MultiPlayerMessage);
     }
 
-    // Lưu lịch sử
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
         timestamp: Date.now(),
