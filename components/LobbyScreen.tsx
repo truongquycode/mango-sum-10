@@ -1,4 +1,3 @@
-// components/LobbyScreen.tsx
 import React, { useState, useRef, useEffect } from 'react'; 
 import { Button } from './UI/Button';
 import { AVATARS } from '../constants';
@@ -105,7 +104,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                     value={myName}
                     onChange={(e) => setMyName(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
-                    maxLength={12} // Tăng lên 12 ký tự (hoặc 15 nếu bạn muốn dài hơn nữa)
+                    maxLength={12}
                     autoFocus
                     onKeyDown={(e) => e.key === 'Enter' && handleConfirmName()}
                   />
@@ -151,7 +150,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   </span>
                 </div>
               ) : (
-                <div className="animate-pulse text-gray-400 font-mono">Đang tạo mã...</div>
+                <div className="animate-pulse text-gray-400 font-mono">Đang tạo phòng...</div>
               )}
               <p className="text-[10px] text-gray-400 mt-2">Gửi 4 số này cho ảnh/ẻm để chơi cùng.</p>
             </div>

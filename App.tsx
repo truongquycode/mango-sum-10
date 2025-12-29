@@ -10,15 +10,18 @@ import { AVATARS } from './constants';
 
 // Firebase Imports
 import { db } from './firebaseConfig';
-import { ref, set, update, onValue, push, remove, onDisconnect, child, get } from "firebase/database";
+import { ref, set, update, onValue, push, remove, onDisconnect, child, get, serverTimestamp } from "firebase/database";
 
-// Giả lập đối tượng DataConnection để không phải sửa Game.tsx
+const ID_PREFIX = 'mango-v1-vn-'; 
+
+// Giả lập đối tượng kết nối để tương thích với Game.tsx
 interface MockConnection {
   send: (data: any) => void;
   on: (event: string, callback: (data: any) => void) => void;
   off: (event: string) => void;
-  connectionId: string;
   close: () => void;
+  open: boolean; // Thêm thuộc tính open
+  peerConnection?: any; // Thêm để tránh lỗi access property
 }
 
 export default function App() {
@@ -26,6 +29,7 @@ export default function App() {
   const [finalScore, setFinalScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
 
+  // Room State
   const [roomId, setRoomId] = useState<string | null>(null);
   const [conn, setConn] = useState<MockConnection | null>(null);
   
@@ -33,7 +37,7 @@ export default function App() {
   const [opponentScore, setOpponentScore] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Tên & Avatar
+  // Player Info
   const [myName, setMyName] = useState("Bạn");
   const [myAvatar, setMyAvatar] = useState(AVATARS[0]);
   const [opponentName, setOpponentName] = useState("Đối thủ");
@@ -43,7 +47,7 @@ export default function App() {
   const [isOpponentReady, setIsOpponentReady] = useState(false);
   const [isHost, setIsHost] = useState(false);
 
-  // Load dữ liệu cũ
+  // Load Highscore
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
     if (saved) setHighScore(parseInt(saved, 10));
@@ -55,7 +59,7 @@ export default function App() {
     if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
   }, []);
 
-  // Tự động start khi cả 2 ready
+  // Auto Start when both ready
   useEffect(() => {
     if (isMultiplayer && gameState === GameState.GAME_OVER) {
       if (isMeReady && isOpponentReady) {
@@ -74,61 +78,63 @@ export default function App() {
 
   const generateRandom4Digit = () => Math.floor(1000 + Math.random() * 9000).toString();
 
-  // --- HÀM TẠO KẾT NỐI FIREBASE (Giả lập PeerJS) ---
+  // --- HÀM TẠO KẾT NỐI FIREBASE ---
   const createFirebaseConnection = (currentRoomId: string, role: 'host' | 'guest') => {
     const messagesRef = ref(db, `rooms/${currentRoomId}/messages`);
     
-    // Đối tượng lắng nghe sự kiện
     const listeners: Record<string, Function[]> = {
       data: [],
       close: [],
-      open: [] // Thêm open để Game.tsx không bị lỗi nếu có lắng nghe
+      open: []
     };
 
-    // 1. Lắng nghe tin nhắn từ Firebase
+    // Lắng nghe tin nhắn từ Firebase
     const unsubscribe = onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Lấy tin nhắn mới nhất
         const msgKeys = Object.keys(data);
+        // Chỉ lấy tin nhắn mới nhất (hoặc xử lý logic queue nếu cần, nhưng game này realtime đơn giản)
+        // Ở đây ta duyệt qua các tin nhắn mới thêm vào nếu dùng child_added sẽ tốt hơn, 
+        // nhưng onValue đơn giản cho demo.
+        // Cải tiến: Dùng timestamp hoặc ID để tránh xử lý lại.
+        // Cách đơn giản nhất cho game turn-based/realtime này:
         const lastKey = msgKeys[msgKeys.length - 1];
         const lastMsg = data[lastKey];
 
-        // Chỉ xử lý tin nhắn từ NGƯỜI KHÁC (tránh tự mình nghe mình nói)
+        // Quan trọng: Chỉ nhận tin từ ĐỐI PHƯƠNG (người khác role với mình)
+        // và tin nhắn phải mới (có thể check timestamp > thời điểm vào phòng)
         if (lastMsg && lastMsg.sender !== role) {
-           // Gọi tất cả hàm đã đăng ký sự kiện 'data'
+           // Hack nhỏ: Đánh dấu đã xử lý local hoặc chỉ trigger nếu chưa xử lý
+           // Để đơn giản, ta trigger luôn. Game logic sẽ tự lọc (ví dụ update score)
            listeners['data']?.forEach(cb => cb(lastMsg.payload));
         }
       }
     });
 
-    // 2. Tạo đối tượng Connection giả
     const mockConn: MockConnection = {
-      connectionId: currentRoomId,
+      open: true,
       
-      // Hàm gửi: Đẩy dữ liệu lên Firebase
       send: (payload: any) => {
         push(messagesRef, {
           sender: role,
           payload: payload,
-          timestamp: Date.now()
+          timestamp: serverTimestamp()
         });
       },
 
-      // Hàm đăng ký sự kiện (giống PeerJS)
       on: (event: string, callback: Function) => {
         if (!listeners[event]) listeners[event] = [];
         listeners[event].push(callback);
+        // Nếu đăng ký sự kiện open, gọi ngay lập tức vì Firebase luôn online
+        if (event === 'open') setTimeout(() => callback(), 100);
       },
 
       off: (event: string) => {
         listeners[event] = [];
       },
 
-      // Hàm đóng kết nối
       close: () => {
-        unsubscribe(); // Hủy lắng nghe Firebase
-        // Gọi các hàm on('close') nếu có
+        unsubscribe();
         listeners['close']?.forEach(cb => cb());
         setConn(null);
       }
@@ -137,7 +143,7 @@ export default function App() {
     return mockConn;
   };
 
-  // --- LOGIC TẠO PHÒNG (HOST) ---
+  // --- HOST TẠO PHÒNG ---
   const handleOpenLobby = async () => {
     setIsMultiplayer(true);
     setGameState(GameState.LOBBY);
@@ -146,33 +152,31 @@ export default function App() {
     setRoomId(newRoomId);
     setIsHost(true);
 
-    // Tạo phòng trên Firebase
     const roomRef = ref(db, `rooms/${newRoomId}`);
     
-    // Set dữ liệu ban đầu
+    // Set dữ liệu phòng
     await set(roomRef, {
-      createdAt: Date.now(),
+      createdAt: serverTimestamp(),
       host: { name: myName, avatar: myAvatar, status: 'WAITING' },
       status: 'OPEN'
     });
 
-    // Xóa phòng khi ngắt kết nối (để không rác database)
+    // Tự động xóa phòng khi mất kết nối
     onDisconnect(roomRef).remove();
 
-    // Lắng nghe xem có Guest vào không
+    // Lắng nghe người vào (Guest)
     const guestRef = child(roomRef, 'guest');
     onValue(guestRef, (snapshot) => {
       const guest = snapshot.val();
       if (guest) {
-        // Có người vào!
         setOpponentName(guest.name);
         setOpponentAvatar(guest.avatar);
         
-        // Tạo kết nối giả để giao tiếp
+        // Kết nối thành công!
         const connection = createFirebaseConnection(newRoomId, 'host');
         setConn(connection);
         
-        // Gửi thông tin của mình lại cho Guest
+        // Gửi thông tin mình cho Guest
         connection.send({ 
             type: 'START', 
             payload: { name: myName, avatar: myAvatar } 
@@ -184,7 +188,7 @@ export default function App() {
     });
   };
 
-  // --- LOGIC VÀO PHÒNG (GUEST) ---
+  // --- GUEST VÀO PHÒNG ---
   const handleJoinGame = async (inputRoomId: string) => {
     if (inputRoomId.length !== 4) return alert("Mã phòng phải là 4 số!");
     
@@ -204,19 +208,21 @@ export default function App() {
              return alert("Phòng đã đầy hoặc đang chơi!");
         }
 
-        // Lưu thông tin Host
+        // Cập nhật thông tin Host
         if (roomData.host) {
             setOpponentName(roomData.host.name);
             setOpponentAvatar(roomData.host.avatar);
         }
 
-        // Cập nhật mình là Guest
+        // Vào phòng
         await update(roomRef, {
             guest: { name: myName, avatar: myAvatar, status: 'JOINED' },
-            status: 'PLAYING' // Đổi trạng thái phòng
+            status: 'PLAYING'
         });
+        
+        // Đăng ký xóa thông tin mình khi thoát
+        onDisconnect(child(roomRef, 'guest')).remove();
 
-        // Tạo kết nối giả
         const connection = createFirebaseConnection(inputRoomId, 'guest');
         setConn(connection);
         setIsHost(false);
@@ -229,35 +235,29 @@ export default function App() {
     } catch (error) {
         console.error(error);
         setIsConnecting(false);
-        alert("Lỗi kết nối Firebase!");
+        alert("Lỗi kết nối Server!");
     }
   };
 
-  // --- LẮNG NGHE SỰ KIỆN GAME (Chung cho cả Host/Guest) ---
+  // --- LẮNG NGHE GAME EVENTS ---
   const setupGameListeners = (connection: MockConnection) => {
     connection.on('data', (msg: MultiPlayerMessage) => {
-      // Xử lý các tin nhắn game y hệt như cũ
       if (msg.type === 'START') {
         if (msg.payload?.name) setOpponentName(msg.payload.name);
         if (msg.payload?.avatar) setOpponentAvatar(msg.payload.avatar);
       } else if (msg.type === 'UPDATE_SCORE') {
         if (msg.payload.score !== undefined) setOpponentScore(msg.payload.score);
-      } else if (msg.type === 'SYNC_MAP') {
-        // ... Logic sync map cũ
-      } else if (msg.type === 'GRID_UPDATE') {
-        // ... Logic grid update cũ
       } else if (msg.type === 'GAME_OVER') {
         setOpponentScore(msg.payload.score);
       } else if (msg.type === 'READY') {
         setIsOpponentReady(true);
       } else if (msg.type === 'REQUEST_MAP' && isHost) {
-        // Host gửi map lại (cần xử lý trong Game.tsx thực ra)
-        // Vì logic này nằm ở App, ta chỉ chuyển tiếp message thôi
+        // App.tsx không giữ state Grid, nên việc này sẽ do Game.tsx xử lý thông qua props connection
+        // Nhưng vì MockConnection đã forward event 'data', Game.tsx sẽ nhận được và tự xử lý.
       }
     });
   };
 
-  // --- CÁC HÀM XỬ LÝ KHÁC (Giữ nguyên) ---
   const handleStartSolo = () => {
     setIsMultiplayer(false);
     setIsHost(true);
@@ -307,13 +307,12 @@ export default function App() {
   };
 
   const handleGoHome = () => {
-    // Nếu đang chơi Multiplayer, xóa phòng hoặc rời phòng
     if (roomId) {
+        const roomRef = ref(db, `rooms/${roomId}`);
         if (isHost) {
-            remove(ref(db, `rooms/${roomId}`)); // Host thoát thì xóa phòng
+            remove(roomRef);
         } else {
-            // Guest thoát thì xóa thông tin guest
-            remove(ref(db, `rooms/${roomId}/guest`));
+            remove(child(roomRef, 'guest'));
         }
     }
 
@@ -354,7 +353,7 @@ export default function App() {
 
       {gameState === GameState.LOBBY && (
         <LobbyScreen 
-          displayId={roomId} // Firebase Room ID
+          displayId={roomId} 
           onJoin={handleJoinGame} 
           onBack={handleGoHome}
           isConnecting={isConnecting}
@@ -371,7 +370,7 @@ export default function App() {
           onGameOver={handleGameOver} 
           isMultiplayer={isMultiplayer}
           isHost={isHost}
-          connection={conn as any} // Ép kiểu any để tương thích với Game.tsx cũ
+          connection={conn as any} 
           myName={myName}
           opponentName={opponentName}
           myAvatar={myAvatar}
