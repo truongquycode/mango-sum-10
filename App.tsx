@@ -74,6 +74,18 @@ export default function App() {
     }
   }, [isMultiplayer, gameState, roomId]);
 
+  useEffect(() => {
+    if (gameState === GameState.LOBBY && roomId) {
+      const role = isHost ? 'host' : 'guest';
+      const userRef = ref(db, `rooms/${roomId}/${role}`);
+      
+      update(userRef, {
+        name: myName,
+        avatar: myAvatar
+      }).catch(err => console.error("Sync error:", err));
+    }
+  }, [myName, myAvatar, gameState, roomId, isHost]);
+
 
   const startMultiplayerMatch = () => {
     if (roomId) {
@@ -190,7 +202,19 @@ export default function App() {
         if (!snapshot.exists()) { setIsConnecting(false); return alert("Phòng không tồn tại!"); }
         const roomData = snapshot.val();
         if (roomData.guest) { setIsConnecting(false); return alert("Phòng đã đầy!"); }
-        if (roomData.host) { setOpponentName(roomData.host.name); setOpponentAvatar(roomData.host.avatar); }
+        
+        // [OLD] Dòng cũ chỉ lấy 1 lần: 
+        // if (roomData.host) { setOpponentName(roomData.host.name); setOpponentAvatar(roomData.host.avatar); }
+
+        // [FIX] Lắng nghe realtime thông tin Host (để nếu Host đổi avatar thì mình thấy ngay)
+        const hostRef = child(roomRef, 'host');
+        onValue(hostRef, (snap) => {
+           const hostData = snap.val();
+           if (hostData) {
+             setOpponentName(hostData.name);
+             setOpponentAvatar(hostData.avatar);
+           }
+        });
 
         await update(roomRef, {
             guest: { name: myName, avatar: myAvatar, status: 'JOINED' },
