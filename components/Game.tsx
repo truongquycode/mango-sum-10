@@ -64,17 +64,67 @@ const generateSolvableValues = (totalCells: number): number[] => {
   return shuffleArray(values);
 };
 
+// Thay thế hàm createInitialGrid cũ bằng hàm này
 const createInitialGrid = (): MangoCell[][] => {
   const grid: MangoCell[][] = [];
   const totalCells = GRID_ROWS * GRID_COLS;
+  
+  // 1. Tạo danh sách các số đảm bảo giải được (như cũ)
   const solvableValues = generateSolvableValues(totalCells);
+  
   let valueIndex = 0;
+
   for (let r = 0; r < GRID_ROWS; r++) {
     const row: MangoCell[] = [];
     for (let c = 0; c < GRID_COLS; c++) {
+      
+      // --- LOGIC MỚI: TRÁNH TRÙNG LẶP HÀNG XÓM (NEIGHBOR CHECK) ---
+      
+      // Lấy giá trị dự định đặt vào
+      let currentValue = solvableValues[valueIndex];
+
+      // Lấy giá trị của ô bên TRÁI (nếu có)
+      const leftValue = c > 0 ? row[c - 1].value : -1;
+      
+      // Lấy giá trị của ô bên TRÊN (nếu có)
+      const topValue = r > 0 ? grid[r - 1][c].value : -1;
+
+      // Kiểm tra xem có bị trùng không?
+      // Điều kiện: Trùng bên trái HOẶC trùng bên trên
+      const isConflict = (currentValue === leftValue) || (currentValue === topValue);
+
+      if (isConflict) {
+        // Nếu bị trùng, hãy tìm trong danh sách các số còn lại (look-ahead)
+        // để kiếm một số khác thế chỗ.
+        let swapFound = false;
+        
+        for (let k = valueIndex + 1; k < solvableValues.length; k++) {
+          const candidate = solvableValues[k];
+          
+          // Kiểm tra xem ứng viên này có ổn không (không trùng trái, không trùng trên)
+          if (candidate !== leftValue && candidate !== topValue) {
+            // ĐẶC BIỆT: Nếu ô bên cạnh là 5, ta rất hạn chế đặt số 5 vào cạnh nó
+            // (Ưu tiên đẩy số 5 ra xa nhau hơn các số khác)
+            if ((leftValue === 5 || topValue === 5) && candidate === 5) {
+               continue; // Bỏ qua, tìm số khác
+            }
+
+            // Tìm thấy số hợp lý! Tráo đổi vị trí trong mảng nguồn
+            [solvableValues[valueIndex], solvableValues[k]] = [solvableValues[k], solvableValues[valueIndex]];
+            currentValue = solvableValues[valueIndex]; // Cập nhật lại giá trị hiện tại
+            swapFound = true;
+            break; // Dừng tìm kiếm
+          }
+        }
+        
+        // Nếu không tìm thấy số nào thay thế (trường hợp hiếm ở cuối mảng),
+        // ta đành chấp nhận số hiện tại.
+      }
+      // -----------------------------------------------------------
+
       row.push({
         id: generateId(),
-        value: solvableValues[valueIndex] || 5,
+        value: currentValue || 5, // Fallback an toàn
         isRemoved: false,
       });
       valueIndex++;
