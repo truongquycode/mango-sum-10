@@ -41,4 +41,4 @@ export const ITEM_CONFIG: Record<ItemType, { name: string, icon: string, desc: s
 };
 
 export const AVATARS = ['🕊️', '🐢', '🐒','🙊','🙉', '🐤', '🐣', '🐥', '🦀', '🐸','🐶', '🐱', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐷', '🐔', '🐦', '🐲'];
-export const REACTION_EMOJIS = ['🤣', '😍', '😡', '😭', '😱', '😘', '😝', ':3', 'hí hí', 'he he', '😜',':>>', '>w<', 'chơi ăn gian', 'chệu thua chưa'];
+export const REACTION_EMOJIS = ['🤣', '😍', '😡', '😭', '😘', '😝', '😜', ':3', 'hí hí', 'he he',':>>', '>w<', 'chơi ăn gian', 'chệu thua chưa'];
