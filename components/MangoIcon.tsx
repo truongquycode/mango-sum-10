@@ -238,14 +238,14 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       </svg>
       
       <style>{`
-        /* Chớp mắt - Rất nhẹ, không gây lag */
-        @keyframes blink {
-          0%, 96%, 100% { transform: scaleY(1); }
-          98% { transform: scaleY(0.1); }
-        }
-        .animate-blink {
-          animation: blink 4s infinite;
-        }
+        // /* Chớp mắt - Rất nhẹ, không gây lag */
+        // @keyframes blink {
+        //   0%, 96%, 100% { transform: scaleY(1); }
+        //   98% { transform: scaleY(0.1); }
+        // }
+        // .animate-blink {
+        //   animation: blink 4s infinite;
+        // }
 
         /* Các hiệu ứng tương tác game */
         @keyframes drop-out { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100px) rotate(20deg); opacity: 0; } }
