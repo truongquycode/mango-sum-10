@@ -208,7 +208,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   onChange={(e) => setMyName(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
                   maxLength={12}
-                  autoFocus
+                  // autoFocus
                   onKeyDown={(e) => e.key === "Enter" && handleConfirmName()}
                 />
               </div>
