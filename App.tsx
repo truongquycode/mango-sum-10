@@ -52,10 +52,28 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem('mango-sum10-highscore');
     if (saved) setHighScore(parseInt(saved, 10));
+    
     const savedName = localStorage.getItem('mango-player-name');
     if (savedName) setMyName(savedName);
-    const savedAvatar = localStorage.getItem('mango-player-avatar');
-    if (savedAvatar && AVATARS.includes(savedAvatar)) setMyAvatar(savedAvatar);
+
+    // --- SỬA ĐOẠN NÀY ---
+    const savedAvatarRaw = localStorage.getItem('mango-player-avatar');
+    if (savedAvatarRaw) {
+      try {
+        // 1. Thử coi nó là dạng JSON Object mới (VD: {"type":"image",...})
+        const parsed = JSON.parse(savedAvatarRaw);
+        
+        // Tìm avatar trong danh sách có 'value' trùng khớp
+        const found = AVATARS.find(a => a.value === parsed.value);
+        if (found) setMyAvatar(found);
+        
+      } catch (e) {
+        // 2. Nếu lỗi (không phải JSON), thì nó là dạng Text cũ (VD: "🐶")
+        // Tìm avatar trong danh sách có 'value' trùng với text đó
+        const found = AVATARS.find(a => a.value === savedAvatarRaw);
+        if (found) setMyAvatar(found);
+      }
+    }
   }, []);
 
   // --- LẮNG NGHE TRẠNG THÁI RESTART TỪ DB ---

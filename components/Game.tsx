@@ -13,8 +13,8 @@ interface GameProps {
   connection?: DataConnection | null;
   myName?: string;
   opponentName?: string;
-  myAvatar?: string;
-  opponentAvatar?: string;
+  myAvatar?: string | { type: string, value: string };
+  opponentAvatar?: string | { type: string, value: string };
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -166,9 +166,28 @@ export const Game: React.FC<GameProps> = ({
   const [effectMessage, setEffectMessage] = useState<{text: string, icon: string, subText?: string} | null>(null);
   const [shuffleMessage, setShuffleMessage] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [incomingEmoji, setIncomingEmoji] = useState<{ emoji: string, id: number } | null>(null);
+  const [incomingEmoji, setIncomingEmoji] = useState<{ type: string, value: string, id: number } | null>(null);
 
   const [isMuted, setIsMuted] = useState(false);
+
+  const renderAvatar = (avatar: any) => {
+    // Nếu chưa có avatar hoặc là string cũ (emoji text)
+    if (!avatar) return <span>👤</span>;
+    if (typeof avatar === 'string') return <span>{avatar}</span>;
+
+    // Nếu là dạng Object mới (Hỗ trợ ảnh)
+    if (avatar.type === 'image') {
+      return (
+        <img 
+          src={avatar.value} 
+          alt="avatar" 
+          className="w-full h-full object-cover pointer-events-none" 
+        />
+      );
+    }
+    // Nếu là text
+    return <span>{avatar.value}</span>;
+  };
   
   // --- STATE MỚI ĐỂ QUẢN LÝ KẾT THÚC ---
   const [isLocalFinished, setIsLocalFinished] = useState(false);
@@ -342,7 +361,8 @@ export const Game: React.FC<GameProps> = ({
         connection.send({ type: 'GRID_UPDATE', payload: { grid, score, opponentName: myName, opponentAvatar: myAvatar } } as MultiPlayerMessage);
       }
       if (msg.type === 'SEND_EMOJI') {
-          setIncomingEmoji({ emoji: msg.payload.emoji, id: Date.now() });
+          // Nhận cả payload (gồm type và value)
+          setIncomingEmoji({ ...msg.payload, id: Date.now() });
           setTimeout(() => setIncomingEmoji(null), 3000);
       }
       if (msg.type === 'ITEM_ATTACK') {
@@ -585,11 +605,15 @@ export const Game: React.FC<GameProps> = ({
       }
   };
 
-  const sendEmoji = (emoji: string) => {
-      playSynthSound('emoji', emoji);
+  const sendEmoji = (item: { type: string, value: string }) => {
+      playSynthSound('pop');
       setShowEmojiPicker(false);
-      connection?.send({ type: 'SEND_EMOJI', payload: { emoji } } as MultiPlayerMessage);
-      setIncomingEmoji({ emoji, id: Date.now() });
+      
+      // Gửi nguyên object { type, value } qua mạng
+      connection?.send({ type: 'SEND_EMOJI', payload: item } as MultiPlayerMessage);
+      
+      // Hiển thị ở máy mình
+      setIncomingEmoji({ ...item, id: Date.now() });
       setTimeout(() => setIncomingEmoji(null), 3000);
   };
 
@@ -626,8 +650,20 @@ export const Game: React.FC<GameProps> = ({
 
       {/* INCOMING EMOJI ANIMATION */}
       {incomingEmoji && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-9xl animate-emoji-pop z-[60] pointer-events-none drop-shadow-2xl">
-              {incomingEmoji.emoji}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-none drop-shadow-2xl animate-emoji-pop">
+              {incomingEmoji.type === 'image' ? (
+                // Nếu là ẢNH: Render thẻ img
+                <img 
+                  src={incomingEmoji.value} 
+                  alt="reaction" 
+                  className="w-32 h-32 sm:w-48 sm:h-48 object-contain" // Chỉnh kích thước ảnh tại đây
+                />
+              ) : (
+                // Nếu là TEXT: Render chữ như cũ
+                <span className="text-6xl sm:text-9xl whitespace-nowrap font-black text-white stroke-black" style={{ textShadow: '4px 4px 0 #000' }}>
+                  {incomingEmoji.value}
+                </span>
+              )}
           </div>
       )}
 
@@ -645,7 +681,9 @@ export const Game: React.FC<GameProps> = ({
                  {myName}
                </span>
                <div className="relative">
-                 <div className="text-3xl filter drop-shadow-md">{myAvatar}</div>
+                 <div className="text-3xl filter drop-shadow-md w-12 h-12 flex items-center justify-center overflow-hidden rounded-full bg-white/20 border-2 border-white/50">
+                    {renderAvatar(myAvatar)}
+                 </div>
                  {streak > 0 && (
                    <div className="absolute right-12 top-full mt-2 flex flex-col items-center animate-bounce z-50">
                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap border-2 border-white">
@@ -686,8 +724,29 @@ export const Game: React.FC<GameProps> = ({
                <div className="flex flex-col items-center relative min-w-[80px] w-32 sm:w-44 relative overflow-visible">
                   <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase truncate max-w-[100px] text-center leading-tight mb-1">{opponentName}</span>
                   <div className="relative">
-                      <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); playSynthSound('pop'); }} className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none active:scale-95">{opponentAvatar}</button>
-                      {showEmojiPicker && <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border-4 border-cyan-500 p-2 grid grid-cols-5 gap-2 w-64 z-[100] animate-fade-in">{REACTION_EMOJIS.map(emoji => (<button key={emoji} onClick={() => sendEmoji(emoji)} className="text-3xl hover:bg-gray-100 p-2 rounded-lg transition-colors active:scale-90">{emoji}</button>))}</div>}
+                      <button 
+                        onClick={() => { setShowEmojiPicker(!showEmojiPicker); playSynthSound('pop'); }} 
+                        className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer relative z-50 outline-none active:scale-95 w-12 h-12 flex items-center justify-center overflow-hidden rounded-full bg-white/20 border-2 border-white/50"
+                      >
+                         {renderAvatar(opponentAvatar)}
+                      </button>
+                      {showEmojiPicker && (
+                        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border-4 border-cyan-500 p-2 grid grid-cols-4 gap-2 w-72 z-[100] animate-fade-in max-h-60 overflow-y-auto">
+                          {REACTION_EMOJIS.map((item, index) => (
+                            <button 
+                              key={index} 
+                              onClick={() => sendEmoji(item)} // Truyền cả object item
+                              className="hover:bg-gray-100 p-1 rounded-lg transition-colors active:scale-90 flex items-center justify-center h-14 w-14 sm:h-16 sm:w-16"
+                            >
+                              {item.type === 'image' ? (
+                                <img src={item.value} alt="icon" className="w-full h-full object-contain pointer-events-none" />
+                              ) : (
+                                <span className="text-xl sm:text-2xl font-bold leading-none break-words text-center">{item.value}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                   </div>
                   <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-xl font-bold text-gray-600 leading-none">{opponentScore}</span>

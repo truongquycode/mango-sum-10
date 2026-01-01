@@ -40,5 +40,69 @@ export const ITEM_CONFIG: Record<ItemType, { name: string, icon: string, desc: s
   BUFF_SCORE: { name: 'X2 Điểm', icon: '🚀', desc: 'Nhân đôi điểm 10s', color: 'bg-green-500' },
 };
 
-export const AVATARS = ['🕊️', '🐢', '🐒','🙊','🙉', '🐤', '🐣', '🐥', '🦀', '🐸','🐶', '🐱', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐷', '🐔', '🐦', '🐲'];
-export const REACTION_EMOJIS = ['🤣', '😍', '😡', '😭', '😘', '😝', '😜', ':3', 'hí hí', 'he he',':>>', '>w<', 'chơi ăn gian', 'chệu thua chưa'];
+export const AVATARS = [
+  // --- NHÓM 2: VÍ DỤ CHỖ ĐỂ GẮN ẢNH (Bạn có thể bỏ comment và thay link) ---
+  // { type: 'image', value: 'https://cdn-icons-png.flaticon.com/512/147/147142.png' },
+  { type: 'image', value: '/assets/avatar/1.webp' },
+  { type: 'image', value: '/assets/avatar/2.webp' },
+  { type: 'image', value: '/assets/avatar/3.webp' },
+  { type: 'image', value: '/assets/avatar/4.webp' },
+  { type: 'image', value: '/assets/avatar/5.webp' },
+
+  // --- NHÓM 1: EMOJI (Từ danh sách bạn gửi) ---
+  { type: 'text', value: '🕊️' },
+  { type: 'text', value: '🐢' },
+  { type: 'text', value: '🐒' },
+  { type: 'text', value: '🙊' },
+  { type: 'text', value: '🙉' },
+  { type: 'text', value: '🐤' },
+  { type: 'text', value: '🐣' },
+  { type: 'text', value: '🐥' },
+  { type: 'text', value: '🦀' },
+  { type: 'text', value: '🐸' },
+  { type: 'text', value: '🐶' },
+  { type: 'text', value: '🐱' },
+  { type: 'text', value: '🐹' },
+  { type: 'text', value: '🐰' },
+  { type: 'text', value: '🦊' },
+  { type: 'text', value: '🐻' },
+  { type: 'text', value: '🐼' },
+  { type: 'text', value: '🐨' },
+  { type: 'text', value: '🐷' },
+  { type: 'text', value: '🐔' },
+  { type: 'text', value: '🐦' },
+  { type: 'text', value: '🐲' },
+
+  
+
+];export const REACTION_EMOJIS = [
+   // --- NHÓM 2: HÌNH ẢNH / MEME (Mới) ---
+  // Bạn thay đường dẫn ảnh thật của bạn vào phần 'value' nhé
+  { type: 'image', value: '/assets/meme/1.png' }, 
+  { type: 'image', value: '/assets/meme/2.png' }, 
+  { type: 'image', value: '/assets/meme/3.png' }, 
+  // { type: 'image', value: '/assets/meme/1.gif' },
+  { type: 'image', value: '/assets/meme/2.gif' },
+  { type: 'image', value: '/assets/meme/3.gif' },
+  { type: 'image', value: '/assets/meme/4.gif' },
+  { type: 'image', value: '/assets/meme/5.gif' },
+  { type: 'image', value: '/assets/meme/6.gif' },
+  // --- NHÓM 1: TEXT & EMOJI (Cũ) ---
+  { type: 'text', value: '🤣' },
+  // { type: 'text', value: '😍' },
+  { type: 'text', value: '😡' },
+  { type: 'text', value: '😭' },
+  // { type: 'text', value: '😘' },
+  { type: 'text', value: '😝' },
+  { type: 'text', value: '😜' },
+  { type: 'text', value: ':3' },
+  { type: 'text', value: 'hí hí' },
+  { type: 'text', value: 'he he' },
+  { type: 'text', value: ':>>' },
+  { type: 'text', value: '>w<' },
+  { type: 'text', value: 'chơi ăn gian' },
+  { type: 'text', value: 'chệu thua chưa' },
+
+ 
+
+];

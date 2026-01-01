@@ -9,35 +9,36 @@ interface MangoIconProps {
   isError?: boolean;
 }
 
-// 1. Component vẽ mặt Ghibli: Chỉ giữ lại chớp mắt (nhẹ, không lag)
+// 1. Cập nhật GhibliFace: Thêm prop isBlinking để kiểm soát chớp mắt
 interface GhibliFaceProps {
   strokeColor?: string;
   translateY?: number;
   blinkDelay?: string;
+  isBlinking?: boolean; // <--- Thêm prop này
 }
 
-const GhibliFace = ({ strokeColor = "#4b3621", translateY = 5, blinkDelay = "0s" }: GhibliFaceProps) => (
+const GhibliFace = ({ strokeColor = "#4b3621", translateY = 5, blinkDelay = "0s", isBlinking = false }: GhibliFaceProps) => (
   <g className="ghibli-face" transform={`translate(0, ${translateY})`}>
     {/* Má hồng phớt */}
     <ellipse cx="28" cy="46" rx="5" ry="3" fill="#ff8a80" opacity="0.5" />
     <ellipse cx="72" cy="46" rx="5" ry="3" fill="#ff8a80" opacity="0.5" />
     
-    {/* Mắt trái: Biết chớp */}
+    {/* Mắt trái: Chỉ thêm class animation nếu isBlinking = true */}
     <circle 
       cx="35" cy="42" r="2.5" 
       fill={strokeColor} 
-      className="animate-blink"
+      className={isBlinking ? "animate-blink" : ""} // <--- Kiểm tra điều kiện ở đây
       style={{ transformOrigin: '35px 42px', animationDelay: blinkDelay }} 
     />
-    {/* Mắt phải: Biết chớp */}
+    {/* Mắt phải */}
     <circle 
       cx="65" cy="42" r="2.5" 
       fill={strokeColor} 
-      className="animate-blink"
+      className={isBlinking ? "animate-blink" : ""} // <--- Kiểm tra điều kiện ở đây
       style={{ transformOrigin: '65px 42px', animationDelay: blinkDelay }} 
     />
     
-    {/* Miệng: Rất nhỏ ở giữa */}
+    {/* Miệng */}
     <path 
       d="M 48 48 Q 50 50 52 48" 
       fill="none" 
@@ -54,7 +55,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
   const strokeColor = colorSet.stroke || colorSet.dark;
   const fillStyle = `url(#grad-${value})`;
 
-  // Giữ lại random delay cho chớp mắt để tự nhiên
+  // Giữ random delay để khi kéo một dải dài, các mắt không chớp đều tăm tắp
   const blinkDelay = React.useMemo(() => `-${(Math.random() * 4).toFixed(2)}s`, []);
 
   let containerClass = '';
@@ -65,7 +66,6 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
   } else if (isSelected) {
     containerClass = 'scale-[1.15] z-10 brightness-110 drop-shadow-xl';
   } else {
-    // Chỉ phóng to nhẹ khi hover, không nhún nhảy liên tục nữa
     containerClass = 'scale-[0.95] hover:scale-[1.05] transition-transform duration-200';
   }
 
@@ -184,12 +184,16 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
     }
   };
 
+  // 2. CẬP NHẬT: Truyền isSelected vào isBlinking
   const renderFace = () => {
-      if (value === 6) return <GhibliFace strokeColor="#000000ff" translateY={-5} blinkDelay={blinkDelay} />; 
-      if (value === 1) return <GhibliFace strokeColor="#21242aff" translateY={5} blinkDelay={blinkDelay} />; 
-      if (value === 5) return <GhibliFace strokeColor="#5d4037" translateY={-5} blinkDelay={blinkDelay} />;
-      if (value === 8) return <GhibliFace strokeColor="#37311cff" translateY={0} blinkDelay={blinkDelay} />;
-      return <GhibliFace blinkDelay={blinkDelay} />;
+      // isBlinking={isSelected} --> Chỉ chớp mắt khi đang được chọn
+      const commonProps = { blinkDelay, isBlinking: isSelected };
+
+      if (value === 6) return <GhibliFace strokeColor="#000000ff" translateY={-5} {...commonProps} />; 
+      if (value === 1) return <GhibliFace strokeColor="#21242aff" translateY={5} {...commonProps} />; 
+      if (value === 5) return <GhibliFace strokeColor="#5d4037" translateY={-5} {...commonProps} />;
+      if (value === 8) return <GhibliFace strokeColor="#37311cff" translateY={0} {...commonProps} />;
+      return <GhibliFace {...commonProps} />;
   }
 
   return (
@@ -207,45 +211,28 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
           </linearGradient>
         </defs>
         
-        {/* ĐÃ BỎ WRAPPER NHÚN NHẢY - Chỉ còn render tĩnh */}
         {renderFruitBody()}
         {renderFace()}
         
-        {/* Số điểm: Màu trắng + Viền đậm + Bóng sâu */}
         <text 
-          x="50" 
-          y="85" 
-          textAnchor="middle" 
-          dominantBaseline="middle" 
-          
-          fill="white"                   // Giữ nguyên màu trắng
-          stroke="rgba(0,0,0,0.4)"       // Thêm viền màu đen bán trong suốt (màu khói)
-          strokeWidth="4"                // Độ dày viền (đủ dày để tách biệt với nền)
-          paintOrder="stroke"            // Quan trọng: Vẽ viền NẰM DƯỚI màu trắng (để chữ không bị lem)
-          
-          fontSize="28"                  // Tăng kích thước lên chút (24 -> 28) cho rõ
-          fontWeight="900" 
-          fontFamily="Rounded Mplus 1c, sans-serif" 
-          style={{ 
-            pointerEvents: 'none', 
-            // Tăng độ đậm của bóng đổ
-            textShadow: '0px 3px 2px rgba(0,0,0,0.3)', 
-            filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.4))' 
-          }}
+          x="50" y="85" textAnchor="middle" dominantBaseline="middle" 
+          fill="white" stroke="rgba(0,0,0,0.4)" strokeWidth="4" paintOrder="stroke"
+          fontSize="28" fontWeight="900" fontFamily="Rounded Mplus 1c, sans-serif" 
+          style={{ pointerEvents: 'none', textShadow: '0px 3px 2px rgba(0,0,0,0.3)', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.4))' }}
         >
           {value}
         </text>
       </svg>
       
       <style>{`
-        // /* Chớp mắt - Rất nhẹ, không gây lag */
-        // @keyframes blink {
-        //   0%, 96%, 100% { transform: scaleY(1); }
-        //   98% { transform: scaleY(0.1); }
-        // }
-        // .animate-blink {
-        //   animation: blink 4s infinite;
-        // }
+        /* Chớp mắt */
+        @keyframes blink {
+          0%, 96%, 100% { transform: scaleY(1); }
+          98% { transform: scaleY(0.1); }
+        }
+        .animate-blink {
+          animation: blink 2s infinite;
+        }
 
         /* Các hiệu ứng tương tác game */
         @keyframes drop-out { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100px) rotate(20deg); opacity: 0; } }

@@ -67,6 +67,25 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     }
   };
 
+  const renderAvatar = (avatar: any) => {
+    if (!avatar) return <span>👤</span>;
+    // Hỗ trợ cả string cũ (đề phòng)
+    if (typeof avatar === 'string') return <span>{avatar}</span>;
+
+    // Nếu là ảnh
+    if (avatar.type === 'image') {
+      return (
+        <img 
+          src={avatar.value} 
+          alt="avatar" 
+          className="w-full h-full object-cover pointer-events-none" 
+        />
+      );
+    }
+    // Nếu là text
+    return <span>{avatar.value}</span>;
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-full w-full p-4 bg-cyan-50 relative overflow-hidden">
        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-cyan-200 rounded-full opacity-30 blur-2xl" />
@@ -82,23 +101,31 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             </div>
             
             <div className="grid grid-cols-5 gap-2 p-2 bg-gray-100 rounded-xl max-h-40 overflow-y-auto custom-scrollbar">
-                {AVATARS.map((av) => (
-                    <button 
-                        key={av}
-                        onClick={() => {
-                            setMyAvatar(av);
-                            playSelectSound(); 
-                        }}
-                        className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all ${myAvatar === av ? 'bg-cyan-500 shadow-lg scale-110 border-2 border-white' : 'bg-white hover:bg-gray-200'}`}
-                    >
-                        {av}
-                    </button>
-                ))}
+                {AVATARS.map((av, idx) => {
+                    // Kiểm tra xem avatar này có đang được chọn không (so sánh value)
+                    const isSelected = (typeof myAvatar === 'object' && myAvatar.value === av.value) || myAvatar === av;
+                    
+                    return (
+                      <button 
+                          key={idx} // Dùng index làm key cho an toàn
+                          onClick={() => {
+                              setMyAvatar(av);
+                              playSelectSound(); 
+                          }}
+                          className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all overflow-hidden ${isSelected ? 'bg-cyan-500 shadow-lg scale-110 border-2 border-white' : 'bg-white hover:bg-gray-200'}`}
+                      >
+                          {/* Gọi hàm render để hiển thị ảnh hoặc text */}
+                          {renderAvatar(av)}
+                      </button>
+                    );
+                })}
             </div>
 
             <div className="space-y-4">
               <div className="flex flex-col items-center">
-                  <div className="text-6xl mb-2 animate-bounce">{myAvatar}</div>
+                  <div className="text-6xl mb-2 animate-bounce w-24 h-24 flex items-center justify-center">
+                    {renderAvatar(myAvatar)}
+                  </div>
                   <input 
                     type="text" 
                     placeholder="Tên của em..." 
@@ -127,7 +154,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             <div className="text-center">
               <h2 className="text-3xl font-black text-cyan-600 mb-1">Phòng Chơi</h2>
               <div className="flex items-center justify-center gap-2 text-gray-500 text-sm bg-gray-100 py-1 px-3 rounded-full mx-auto w-fit">
-                <span className="text-2xl">{myAvatar}</span>
+                <div className="w-8 h-8 flex items-center justify-center text-2xl">
+                  {renderAvatar(myAvatar)}
+                </div>
                 <span className="font-bold text-gray-700">{myName}</span>
                 <button 
                   onClick={() => setStep('NAME')} 
