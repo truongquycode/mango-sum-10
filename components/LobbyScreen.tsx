@@ -288,6 +288,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 placeholder="Nhập mã 4 số của ảnh/ẻm..."
                 value={remoteCode}
                 onChange={(e) => setRemoteCode(e.target.value.slice(0, 4))}
+                onFocus={(e) => e.target.select()}
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-cyan-400 focus:outline-none font-mono text-center text-xl placeholder:text-base placeholder:font-sans transition-colors"
               />
               <Button
