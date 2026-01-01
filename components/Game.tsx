@@ -7,7 +7,16 @@ import { MangoIcon } from './MangoIcon';
 import { ITEM_CONFIG, REACTION_EMOJIS } from '../constants';
 
 interface GameProps {
-  onGameOver: (score: number, itemsUsed: Record<string, number>, finalOpponentScore?: number) => void; 
+  // Thêm tham số `opponentItemsUsed` vào cuối
+  onGameOver: (
+    score: number, 
+    itemsUsed: Record<string, number>, 
+    finalOpponentScore?: number, 
+    opponentItemsUsed?: Record<string, number>,
+    duration?: number,
+    startTime?: number
+  ) => void; 
+  
   isMultiplayer?: boolean;
   isHost?: boolean;
   connection?: DataConnection | null;
@@ -16,6 +25,7 @@ interface GameProps {
   myAvatar?: string | { type: string, value: string };
   opponentAvatar?: string | { type: string, value: string };
 }
+// Trong Game.tsx
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -167,8 +177,9 @@ export const Game: React.FC<GameProps> = ({
   const [shuffleMessage, setShuffleMessage] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [incomingEmoji, setIncomingEmoji] = useState<{ type: string, value: string, id: number } | null>(null);
-
+  const [opponentItemsStats, setOpponentItemsStats] = useState<Record<string, number>>({});
   const [isMuted, setIsMuted] = useState(false);
+  const startTimeRef = useRef(Date.now());
 
   const renderAvatar = (avatar: any) => {
     // Nếu chưa có avatar hoặc là string cũ (emoji text)
@@ -347,6 +358,9 @@ export const Game: React.FC<GameProps> = ({
       if (msg.type === 'PLAYER_FINISHED') {
          setIsOpponentFinished(true);
          if (msg.payload?.score !== undefined) setOpponentScore(msg.payload.score);
+         if (msg.payload?.itemsUsed) {
+             setOpponentItemsStats(msg.payload.itemsUsed);
+         }
          return;
       }
       
@@ -407,23 +421,31 @@ export const Game: React.FC<GameProps> = ({
   }, [isMultiplayer, connection, grid, score, isHost]);
 
   // --- CHECK KẾT THÚC GAME TOÀN CỤC ---
+  // --- CHECK KẾT THÚC GAME TOÀN CỤC ---
   useEffect(() => {
     if (isGameEndedRef.current) return;
+
+    // Tính thời gian thực tế
+    const actualDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+    // Lấy thời gian bắt đầu
+    const startTime = startTimeRef.current; // <--- LẤY GIÁ TRỊ NÀY
 
     // Solo: Hết giờ là xong
     if (!isMultiplayer && isLocalFinished) {
         isGameEndedRef.current = true;
-        onGameOver(score, itemsUsedStats, 0);
+        // Truyền thêm startTime vào cuối
+        onGameOver(score, itemsUsedStats, 0, {}, actualDuration, startTime); 
     } 
     // Multiplayer: CẢ 2 PHẢI CÙNG XONG
     else if (isMultiplayer && isLocalFinished && isOpponentFinished) {
         isGameEndedRef.current = true;
-        // Đợi 1 chút cho mượt
         setTimeout(() => {
-            onGameOver(score, itemsUsedStats, opponentScore);
+            // Truyền thêm startTime vào cuối
+            onGameOver(score, itemsUsedStats, opponentScore, opponentItemsStats, actualDuration, startTime);
         }, 1000);
     }
-  }, [isLocalFinished, isOpponentFinished, isMultiplayer, score, itemsUsedStats, opponentScore, onGameOver]);
+  }, [isLocalFinished, isOpponentFinished, isMultiplayer, score, itemsUsedStats, opponentScore, opponentItemsStats, onGameOver]);
 
   // --- XỬ LÝ HẾT GIỜ CỤC BỘ ---
   useEffect(() => {
@@ -437,7 +459,7 @@ export const Game: React.FC<GameProps> = ({
         if (isMultiplayer && connection) {
             connection.send({ 
                 type: 'PLAYER_FINISHED', 
-                payload: { score: score } 
+                payload: { score: score, itemsUsed: itemsUsedStats} 
             } as MultiPlayerMessage);
         }
         return; 

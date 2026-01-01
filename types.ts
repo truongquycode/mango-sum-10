@@ -49,4 +49,6 @@ export interface MatchRecord {
   myScore: number;
   opponentScore?: number;
   itemsUsed: Record<string, number>;
+  opponentItemsUsed?: Record<string, number>;
+  duration?: number;
 }
