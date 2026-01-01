@@ -107,7 +107,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer
         <div className="z-10 text-center space-y-6 bg-white/80 backdrop-blur-sm p-8 md:p-10 rounded-3xl shadow-2xl border-4 border-cyan-200 max-w-md w-full animate-fade-in">
           <div>
             <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 drop-shadow-md mb-2 leading-tight tracking-tight transform -rotate-2">
-              Thanh Lam<br/>
+              Thanh Lamm<br/>
               <span className="text-4xl md:text-5xl text-yellow-500 drop-shadow-none">Cộng lại 10 :33</span>
             </h1>
             <p className="text-gray-600 font-medium italic">"Chơi cùng Thanh Lam là vuiiii nhất"</p>
