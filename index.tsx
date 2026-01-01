@@ -13,3 +13,12 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for(let registration of registrations) {
+      registration.unregister();
+      console.log("Đã diệt Service Worker cũ để update app mới!");
+    }
+  });
+}
