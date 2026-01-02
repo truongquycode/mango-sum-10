@@ -144,7 +144,10 @@ export const Game: React.FC<GameProps> = ({
   const [effectMessage, setEffectMessage] = useState<{text: string, icon: string, subText?: string} | null>(null);
   const [shuffleMessage, setShuffleMessage] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const [incomingEmoji, setIncomingEmoji] = useState<{ type: string, value: string, id: number } | null>(null);
+  const emojiTimerRef = useRef<NodeJS.Timeout | null>(null); 
+
   const [opponentItemsStats, setOpponentItemsStats] = useState<Record<string, number>>({});
   const [isMuted, setIsMuted] = useState(false);
   const startTimeRef = useRef(Date.now());
@@ -159,10 +162,11 @@ export const Game: React.FC<GameProps> = ({
     isDragging: false, startPos: null, currentPos: null,
   });
   const gridRef = useRef<HTMLDivElement>(null);
+  
+  const gridRectRef = useRef<DOMRect | null>(null);
 
-  // --- HELPER RENDER AVATAR (GIỮ NGUYÊN FIX LỖI ICON) ---
+  // --- HELPER RENDER AVATAR ---
   const renderAvatar = (avatar: any) => {
-    // 1. Nếu là ảnh (Object type image)
     if (avatar && typeof avatar === 'object' && avatar.type === 'image') {
         return (
           <img 
@@ -172,10 +176,7 @@ export const Game: React.FC<GameProps> = ({
           />
         );
     }
-
-    // 2. Nếu là Text/Icon (Object type text HOẶC string cũ)
     const displayValue = (avatar && typeof avatar === 'object') ? avatar.value : (avatar || "👤");
-    
     return (
         <div className="w-full h-full flex items-center justify-center bg-white text-3xl pb-1">
             {displayValue}
@@ -183,7 +184,7 @@ export const Game: React.FC<GameProps> = ({
     );
   };
 
-  // --- AUDIO & SETUP (Giữ nguyên) ---
+  // --- AUDIO SETUP ---
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     const totalTracks = 5; 
@@ -252,7 +253,57 @@ export const Game: React.FC<GameProps> = ({
     osc.start(); osc.stop(currTime + 0.3);
   }, [isMuted, streak]);
 
-  // --- GAMEPLAY LOGIC (Giữ nguyên) ---
+  // --- CẬP NHẬT: HÀM TẠO ÂM THANH CHO STICKER/GIF ---
+  const playStickerSound = useCallback((item: { type: string, value: string }) => {
+    if (isMuted || !audioContextRef.current) return;
+    if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
+    
+    const ctx = audioContextRef.current;
+    const now = ctx.currentTime;
+
+    // Helper tạo nốt nhạc
+    const playTone = (freq: number, startTime: number, duration: number, type: OscillatorType = 'sine') => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.1, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    };
+
+    if (item.type === 'image') {
+        // GIF/Ảnh: Âm thanh "Ta-da" hoặc "Bling" (Arpeggio đi lên)
+        playTone(523.25, now, 0.3, 'triangle'); // C5
+        playTone(659.25, now + 0.1, 0.3, 'triangle'); // E5
+        playTone(783.99, now + 0.2, 0.5, 'triangle'); // G5
+        playTone(1046.50, now + 0.3, 0.6, 'sine'); // C6 (Chốt hạ)
+    } else {
+        // Sticker Text
+        if (item.value.length > 5) {
+            // Chữ dài: Âm thanh "Ding-dong" (Thông báo)
+            playTone(600, now, 0.4, 'sine');
+            playTone(800, now + 0.2, 0.6, 'sine');
+        } else {
+            // Chữ ngắn/Icon: Âm thanh "Pop" hoặc "Bloop" dễ thương
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1); // Pitch trượt lên
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            osc.start(now);
+            osc.stop(now + 0.15);
+        }
+    }
+  }, [isMuted]);
+
+  // --- GAMEPLAY LOGIC ---
   const hasValidMoves = (currentGrid: MangoCell[][]): boolean => {
     for (let r1 = 0; r1 < GRID_ROWS; r1++) {
         for (let c1 = 0; c1 < GRID_COLS; c1++) {
@@ -317,6 +368,21 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [isMultiplayer, isHost, grid.length, connection]);
 
+  const handleShowEmoji = (payload: { type: string, value: string }) => {
+      if (emojiTimerRef.current) {
+          clearTimeout(emojiTimerRef.current);
+      }
+      setIncomingEmoji({ ...payload, id: Date.now() });
+      
+      // GỌI HÀM PHÁT ÂM THANH MỚI
+      playStickerSound(payload);
+
+      emojiTimerRef.current = setTimeout(() => {
+          setIncomingEmoji(null);
+          emojiTimerRef.current = null;
+      }, 3500);
+  };
+
   useEffect(() => {
     if (!isMultiplayer || !connection) return;
     const handleData = (data: any) => {
@@ -340,8 +406,7 @@ export const Game: React.FC<GameProps> = ({
         connection.send({ type: 'GRID_UPDATE', payload: { grid, score, opponentName: myName, opponentAvatar: myAvatar } } as MultiPlayerMessage);
       }
       if (msg.type === 'SEND_EMOJI') {
-          setIncomingEmoji({ ...msg.payload, id: Date.now() });
-          setTimeout(() => setIncomingEmoji(null), 3000);
+          handleShowEmoji(msg.payload);
       }
       if (msg.type === 'ITEM_ATTACK') {
           const { effect } = msg.payload;
@@ -437,9 +502,22 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [streak]);
 
+  const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
+    if (!gridRef.current || !gridRectRef.current) return null;
+    const rect = gridRectRef.current;
+    const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
+    if (isOutside && !clampToEdge) return null;
+    const cellWidth = rect.width / GRID_COLS;
+    const cellHeight = rect.height / GRID_ROWS;
+    return { 
+      row: Math.max(0, Math.min(Math.floor((clientY - rect.top) / cellHeight), GRID_ROWS - 1)),
+      col: Math.max(0, Math.min(Math.floor((clientX - rect.left) / cellWidth), GRID_COLS - 1))
+    };
+  }, []);
+
   const handleStart = (clientX: number, clientY: number) => {
     if (isProcessing || shuffleMessage || isLocalFinished) return; 
-
+    if (gridRef.current) gridRectRef.current = gridRef.current.getBoundingClientRect();
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
     const pos = getCellFromCoords(clientX, clientY, true); 
     if (pos && !grid[pos.row][pos.col].isRemoved) setDragState({ isDragging: true, startPos: pos, currentPos: pos });
@@ -448,7 +526,11 @@ export const Game: React.FC<GameProps> = ({
   const handleMove = (clientX: number, clientY: number) => {
     if (!dragState.isDragging) return;
     const pos = getCellFromCoords(clientX, clientY, true);
-    if (pos) setDragState((prev) => ({ ...prev, currentPos: pos }));
+    if (pos) {
+        if (pos.row !== dragState.currentPos?.row || pos.col !== dragState.currentPos?.col) {
+            setDragState((prev) => ({ ...prev, currentPos: pos }));
+        }
+    }
   };
 
   const handleEnd = () => {
@@ -488,19 +570,6 @@ export const Game: React.FC<GameProps> = ({
      }
      setDragState({ isDragging: false, startPos: null, currentPos: null });
   };
-
-  const getCellFromCoords = useCallback((clientX: number, clientY: number, clampToEdge: boolean = false): Position | null => {
-    if (!gridRef.current) return null;
-    const rect = gridRef.current.getBoundingClientRect();
-    const isOutside = clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom;
-    if (isOutside && !clampToEdge) return null;
-    const cellWidth = rect.width / GRID_COLS;
-    const cellHeight = rect.height / GRID_ROWS;
-    return { 
-      row: Math.max(0, Math.min(Math.floor((clientY - rect.top) / cellHeight), GRID_ROWS - 1)),
-      col: Math.max(0, Math.min(Math.floor((clientX - rect.left) / cellWidth), GRID_COLS - 1))
-    };
-  }, []);
 
   const isCellSelected = useCallback((r: number, c: number) => {
     if (!dragState.isDragging || !dragState.startPos || !dragState.currentPos) return false;
@@ -573,8 +642,7 @@ export const Game: React.FC<GameProps> = ({
       playSynthSound('pop');
       setShowEmojiPicker(false);
       connection?.send({ type: 'SEND_EMOJI', payload: item } as MultiPlayerMessage);
-      setIncomingEmoji({ ...item, id: Date.now() });
-      setTimeout(() => setIncomingEmoji(null), 3000);
+      handleShowEmoji(item);
   };
 
   const currentSum = (() => {
@@ -593,7 +661,7 @@ export const Game: React.FC<GameProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-cyan-50 relative overflow-hidden font-sans select-none">
       
-      {/* 1. ANIMATED BACKGROUND BLOBS (Đã thêm lại theo yêu cầu) */}
+      {/* 1. ANIMATED BACKGROUND BLOBS */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
          <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob"></div>
          <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-2000"></div>
@@ -610,102 +678,135 @@ export const Game: React.FC<GameProps> = ({
         </div>
       )}
 
-      {/* SCREEN EFFECTS (Làm mờ nhẹ như yêu cầu) */}
+      {/* SCREEN EFFECTS */}
       {isFrozen && <div className="absolute inset-0 bg-blue-300/10 pointer-events-none z-40 border-[6px] border-blue-200 rounded-lg m-1 animate-pulse"></div>}
       {speedMultiplier > 1 && <div className="absolute inset-0 bg-red-300/10 pointer-events-none z-40 border-[6px] border-red-300 rounded-lg m-1"></div>}
       {magicActive && <div className="absolute inset-0 pointer-events-none z-40 border-[6px] border-purple-300/40 opacity-50 animate-pulse rounded-lg m-1"></div>}
 
-      {/* EMOJI DISPLAY */}
+      {/* EMOJI DISPLAY (Sửa lại: Bo góc, thêm nền cho sticker chữ) */}
       {incomingEmoji && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-none drop-shadow-2xl animate-emoji-pop">
+          <div 
+             key={incomingEmoji.id} 
+             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none animate-emoji-pop max-w-[90vw] flex justify-center"
+          >
               {incomingEmoji.type === 'image' ? (
-                <img src={incomingEmoji.value} alt="reaction" className="w-48 h-48 object-contain" />
+                // Sticker ảnh: Bo góc + Viền trắng + Bóng đổ
+                <img 
+                  src={incomingEmoji.value} 
+                  alt="reaction" 
+                  className="w-48 h-48 object-contain rounded-[2rem] shadow-2xl border-4 border-white bg-white/20 backdrop-blur-sm" 
+                />
               ) : (
-                <span className="text-8xl whitespace-nowrap font-black text-white stroke-cyan-800" style={{ textShadow: '4px 4px 0 #0891b2' }}>
-                  {incomingEmoji.value}
-                </span>
+                // Sticker chữ: Đóng khung bubble bo tròn
+                <div className="bg-white/95 backdrop-blur-md px-8 py-6 rounded-[3rem] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border-4 border-cyan-100 flex items-center justify-center transform rotate-[-2deg]">
+                    <span 
+                      className="block font-black text-cyan-500 break-words leading-tight text-center text-4xl sm:text-6xl"
+                      style={{ textShadow: '2px 2px 0px #ecfeff' }}
+                    >
+                      {incomingEmoji.value}
+                    </span>
+                </div>
               )}
           </div>
       )}
 
       {/* --- HUD HEADER --- */}
-      <div className="relative z-50 pt-1 px-1 pb-1 shrink-0 flex flex-col gap-1">
+      <div className="relative z-50 pt-2 px-1 pb-1 shrink-0 w-full max-w-2xl mx-auto">
          {/* Top Bar: Time Tube */}
-         <div className="w-full max-w-md mx-auto h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner relative border border-white/50">
+         <div className="w-full max-w-md mx-auto h-2 mb-2 bg-gray-200 rounded-full overflow-hidden shadow-inner relative border border-white/50">
             <div 
               className={`h-full transition-all duration-1000 ease-linear rounded-full ${timeLeft < 10 ? 'bg-red-400' : 'bg-cyan-400'}`} 
               style={{ width: `${Math.min((timeLeft / GAME_DURATION_SECONDS) * 100, 100)}%` }} 
             />
          </div>
 
-         <div className="flex items-start justify-between w-full max-w-2xl mx-auto px-0">
-             {/* PLAYER CARD */}
-             <div className="flex flex-col items-center bg-white/60 backdrop-blur-md rounded-2xl p-2 border-2 border-white/60 shadow-lg w-28 min-h-[140px] relative transition-transform hover:scale-105">
+         <div className="flex items-end justify-between w-full gap-0 px-0">
+             
+             {/* --- LEFT: PLAYER CARD (BỰ HƠN) --- */}
+             <div className="flex flex-col items-center bg-white/60 backdrop-blur-md rounded-2xl p-2 border-2 border-white/60 shadow-lg w-28 sm:w-36 min-h-[120px] sm:min-h-[160px] relative transition-transform hover:scale-105 shrink-0">
                  <div className="relative">
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-4 border-cyan-100 shadow-sm bg-white">
+                    <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full overflow-hidden border-4 border-cyan-100 shadow-sm bg-white">
                         {renderAvatar(myAvatar)}
                     </div>
-                    {streak > 0 && (
-                        <div className="absolute -bottom-2 -right-2 bg-orange-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-bounce border-2 border-white">
-                           🔥x{streak}
-                        </div>
-                    )}
                  </div>
-                 <span className="text-xs font-bold text-cyan-700 mt-1 w-full text-center truncate px-1">{myName}</span>
+                 <span className="text-[10px] sm:text-xs font-bold text-cyan-700 mt-1 w-full text-center truncate px-1">{myName}</span>
                  
-                 <div className="flex flex-col items-center justify-end flex-1 w-full mt-1">
-                     <span className="text-2xl font-black text-cyan-600 leading-none drop-shadow-sm">{score}</span>
-                     {bonusText && <span key={bonusText.id} className={`absolute top-0 left-1/2 -translate-x-1/2 ${bonusText.color || 'text-yellow-400'} font-black text-xl animate-float-up pointer-events-none whitespace-nowrap z-50 drop-shadow-sm`}>{bonusText.text}</span>}
+                 {/* SCORE & STREAK ROW */}
+                 <div className="flex items-center justify-center gap-1 flex-1 w-full mt-1 min-h-[24px]">
+                     <span className="text-xl sm:text-3xl font-black text-cyan-600 leading-none drop-shadow-sm">{score}</span>
+                     {streak > 0 && (
+                        <div className="flex flex-col items-center w-6 sm:w-8">
+                           <span className="text-[8px] sm:text-[10px] font-bold text-orange-500 whitespace-nowrap">🔥x{streak}</span>
+                           <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden border border-white/50 shadow-sm">
+                              <div key={streak} className="h-full bg-gradient-to-r from-yellow-400 to-red-500" style={{ width: '100%', animation: 'streak-countdown 5s linear forwards' }} />
+                           </div>
+                        </div>
+                     )}
+                     {bonusText && <span key={bonusText.id} className={`absolute top-0 left-1/2 -translate-x-1/2 ${bonusText.color || 'text-yellow-400'} font-black text-lg animate-float-up pointer-events-none whitespace-nowrap z-50 drop-shadow-sm`}>{bonusText.text}</span>}
                  </div>
              </div>
 
-             {/* INVENTORY (Center) */}
-             {isMultiplayer ? (
-               <div className="flex flex-col items-center mt-1 mx-1">
-                 <div className="flex gap-1.5 bg-black/5 backdrop-blur-sm p-1 rounded-full border border-white/20">
-                    {[0, 1, 2].map(index => {
-                      const item = inventory[index];
-                      return (
-                        <div key={index} className="relative group">
-                           <button 
-                             disabled={!item} 
-                             onClick={() => item && handleUseItem(item)} 
-                             className={`w-9 h-9 rounded-full flex items-center justify-center text-lg shadow-sm transition-all active:scale-90 ${item ? `${ITEM_CONFIG[item.type].color} text-white border-2 border-white hover:scale-110 shadow-md` : 'bg-white/40 border-2 border-white/20'}`}
-                           >
-                             {item ? ITEM_CONFIG[item.type].icon : ''}
-                           </button>
-                           {/* Cool down spinner inside */}
-                           {item && <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-0.5"><circle cx="18" cy="18" r="15" stroke="white" strokeWidth="2" fill="none" strokeDasharray="100" strokeDashoffset={100 * ((Date.now() - item.receivedAt)/60000)} className="opacity-50" /></svg>}
-                        </div>
-                      );
-                    })}
+             {/* --- CENTER: HEARTBEAT (TOP) + INVENTORY (BOTTOM) --- */}
+             <div className="flex-1 flex flex-col items-center justify-end h-full pb-1 gap-1 overflow-hidden">
+                 {/* Heartbeat Line (FULL CONNECTED) */}
+                 <div className="w-full flex items-center justify-center gap-0 opacity-80 mb-auto mt-2">
+                     {/* Left Line: 0 -> 100 */}
+                     <svg className="flex-1 h-6 text-red-400" preserveAspectRatio="none" viewBox="0 0 100 20">
+                         <path d="M0,10 L70,10 L75,0 L80,20 L85,10 L100,10" fill="none" stroke="currentColor" strokeWidth="2" className="animate-pulse" />
+                     </svg>
+                     <div className="text-xl sm:text-2xl animate-heartbeat text-red-500 drop-shadow-sm z-10 -mx-1">❤️</div>
+                     {/* Right Line: 0 -> 100 */}
+                     <svg className="flex-1 h-6 text-red-400" preserveAspectRatio="none" viewBox="0 0 100 20">
+                        <path d="M0,10 L15,10 L20,0 L25,20 L30,10 L100,10" fill="none" stroke="currentColor" strokeWidth="2" className="animate-pulse" />
+                     </svg>
                  </div>
-                 {effectMessage && (
-                   <div className="mt-1 bg-white/90 backdrop-blur-md text-cyan-800 px-2 py-1 rounded-xl shadow-lg border border-cyan-100 animate-fade-in flex items-center gap-1 absolute top-14 z-50 whitespace-nowrap">
-                      <span className="text-base">{effectMessage.icon}</span>
-                      <div className="flex flex-col items-start leading-tight">
-                         <span className="text-[10px] font-black uppercase text-cyan-600">{effectMessage.text}</span>
-                      </div>
-                   </div>
-                 )}
-               </div>
-             ) : (
-                <div className="mt-2 opacity-30 text-3xl animate-pulse">🍋</div>
-             )}
 
-             {/* OPPONENT CARD */}
-             {isMultiplayer && (
-                <div className="flex flex-col items-center bg-white/60 backdrop-blur-md rounded-2xl p-2 border-2 border-white/60 shadow-lg w-28 min-h-[140px] relative transition-transform hover:scale-105">
+                 {/* INVENTORY */}
+                 {isMultiplayer ? (
+                   <div className="flex flex-col items-center w-full relative">
+                     <div className="flex gap-1 bg-black/5 backdrop-blur-sm p-1 rounded-full border border-white/20">
+                        {[0, 1, 2].map(index => {
+                          const item = inventory[index];
+                          return (
+                            <div key={index} className="relative group">
+                               <button 
+                                 disabled={!item} 
+                                 onClick={() => item && handleUseItem(item)} 
+                                 className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm sm:text-lg shadow-sm transition-all active:scale-90 ${item ? `${ITEM_CONFIG[item.type].color} text-white border-2 border-white hover:scale-110 shadow-md` : 'bg-white/40 border-2 border-white/20'}`}
+                               >
+                                 {item ? ITEM_CONFIG[item.type].icon : ''}
+                               </button>
+                               {item && <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-0.5"><circle cx="50%" cy="50%" r="40%" stroke="white" strokeWidth="2" fill="none" strokeDasharray="100" strokeDashoffset={100 * ((Date.now() - item.receivedAt)/60000)} className="opacity-50" /></svg>}
+                            </div>
+                          );
+                        })}
+                     </div>
+                     {effectMessage && (
+                       <div className="absolute bottom-full mb-2 bg-white/90 backdrop-blur-md text-cyan-800 px-2 py-1 rounded-xl shadow-lg border border-cyan-100 animate-fade-in flex items-center gap-1 z-50 whitespace-nowrap">
+                          <span className="text-sm">{effectMessage.icon}</span>
+                          <div className="flex flex-col items-start leading-tight">
+                             <span className="text-[10px] font-black uppercase text-cyan-600">{effectMessage.text}</span>
+                          </div>
+                       </div>
+                     )}
+                   </div>
+                 ) : (
+                    <div className="opacity-30 text-2xl sm:text-3xl animate-pulse pb-2">🍋</div>
+                 )}
+             </div>
+
+             {/* --- RIGHT: OPPONENT CARD (BỰ HƠN) --- */}
+             <div className="flex flex-col items-center bg-white/60 backdrop-blur-md rounded-2xl p-2 border-2 border-white/60 shadow-lg w-28 sm:w-36 min-h-[120px] sm:min-h-[160px] relative transition-transform hover:scale-105 shrink-0">
                    <div className="relative">
                       <button 
                          onClick={() => { setShowEmojiPicker(!showEmojiPicker); playSynthSound('pop'); }}
-                         className="w-14 h-14 rounded-full overflow-hidden border-4 border-gray-100 shadow-sm bg-white active:scale-95 transition-transform"
+                         className="w-14 h-14 sm:w-20 sm:h-20 rounded-full overflow-hidden border-4 border-gray-100 shadow-sm bg-white active:scale-95 transition-transform"
                       >
                          {renderAvatar(opponentAvatar)}
                       </button>
                       {/* Emoji Picker Dropdown */}
                       {showEmojiPicker && (
-                        <div className="absolute top-full right-0 mt-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border-4 border-cyan-200 p-2 grid grid-cols-4 gap-1 w-64 z-[100] animate-fade-in max-h-60 overflow-y-auto custom-scrollbar">
+                        <div className="absolute top-full right-0 mt-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border-4 border-cyan-200 p-2 grid grid-cols-4 gap-1 w-56 sm:w-64 z-[100] animate-fade-in max-h-60 overflow-y-auto custom-scrollbar">
                            {REACTION_EMOJIS.map((item, index) => (
                               <button 
                                 key={index} 
@@ -715,21 +816,24 @@ export const Game: React.FC<GameProps> = ({
                                 {item.type === 'image' ? (
                                   <img src={item.value} alt="icon" className="w-full h-full object-contain pointer-events-none" />
                                 ) : (
-                                  <span className="text-xl font-bold">{item.value}</span>
+                                  <span className="text-lg sm:text-xl font-bold">{item.value}</span>
                                 )}
                               </button>
                            ))}
                         </div>
                       )}
                    </div>
-                   <span className="text-xs font-bold text-gray-500 mt-1 w-full text-center truncate px-1">{opponentName}</span>
+                   <span className="text-[10px] sm:text-xs font-bold text-gray-500 mt-1 w-full text-center truncate px-1">{opponentName}</span>
                    
-                   <div className="flex flex-col items-center justify-end flex-1 w-full mt-1">
-                      <span className="text-2xl font-black text-gray-600 drop-shadow-sm">{opponentScore}</span>
-                      <span className={`text-[10px] font-bold ${opponentTimeLeft < 10 ? 'text-red-400' : 'text-gray-400'}`}>{Math.ceil(opponentTimeLeft)}s</span>
+                   {/* SCORE & TIME ROW (Cân bằng với bên trái) */}
+                   <div className="flex items-center justify-center gap-2 flex-1 w-full mt-1 min-h-[24px]">
+                      <span className="text-xl sm:text-3xl font-black text-gray-600 drop-shadow-sm">{opponentScore}</span>
+                      <span className={`text-[9px] sm:text-[10px] font-bold ${opponentTimeLeft < 10 ? 'text-red-400' : 'text-gray-400'} whitespace-nowrap flex flex-col items-center leading-none`}>
+                          <span>⏳</span>
+                          {Math.ceil(opponentTimeLeft)}s
+                      </span>
                    </div>
                 </div>
-             )}
          </div>
       </div>
 
@@ -749,10 +853,10 @@ export const Game: React.FC<GameProps> = ({
           {/* GRID CELLS */}
           <div ref={gridRef} className="w-full h-full" style={{ display: 'grid', gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`, gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: '3px' }}>
             
-            {/* SELECTION LINE/BOX (ĐÃ BỎ BONG BÓNG SỐ) */}
+            {/* SELECTION LINE/BOX */}
             {dragState.isDragging && dragState.startPos && dragState.currentPos && (
               <div 
-                className={`absolute pointer-events-none border-[5px] rounded-2xl z-50 transition-all duration-75 shadow-[0_0_15px_rgba(255,255,255,0.6)] ${isValidSum || magicActive ? 'border-yellow-400 bg-yellow-300/20' : 'border-cyan-300 bg-cyan-200/20'}`}
+                className={`absolute pointer-events-none border-[5px] rounded-2xl z-50 shadow-[0_0_15px_rgba(255,255,255,0.6)] ${isValidSum || magicActive ? 'border-yellow-400 bg-yellow-300/20' : 'border-cyan-300 bg-cyan-200/20'}`}
                 style={{
                   left: `${Math.min(dragState.startPos.col, dragState.currentPos.col) * (100 / GRID_COLS)}%`,
                   top: `${Math.min(dragState.startPos.row, dragState.currentPos.row) * (100 / GRID_ROWS)}%`,
@@ -807,9 +911,8 @@ export const Game: React.FC<GameProps> = ({
             70% { transform: translate(-50%, -50%) scale(1.0) rotate(-5deg); }
             100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5) rotate(0deg); }
         }
-        .animate-emoji-pop { animation: emoji-pop 2s ease-out forwards; }
+        .animate-emoji-pop { animation: emoji-pop 3.5s ease-out forwards; }
 
-        /* Animation Blobs */
         @keyframes blob {
           0% { transform: translate(0px, 0px) scale(1); }
           33% { transform: translate(30px, -50px) scale(1.1); }
@@ -819,6 +922,12 @@ export const Game: React.FC<GameProps> = ({
         .animate-blob { animation: blob 7s infinite; }
         .animation-delay-2000 { animation-delay: 2s; }
         .animation-delay-4000 { animation-delay: 4s; }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        .animate-heartbeat { animation: heartbeat 1.5s infinite ease-in-out; }
       `}</style>
     </div>
   );

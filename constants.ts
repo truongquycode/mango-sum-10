@@ -98,10 +98,18 @@ export const AVATARS = [
   { type: 'text', value: ':3' },
   { type: 'text', value: 'hí hí' },
   { type: 'text', value: 'he he' },
+  { type: 'text', value: 'hiho hiho' },
+  { type: 'text', value: 'kkkk' },
   { type: 'text', value: ':>>' },
   { type: 'text', value: '>w<' },
-  { type: 'text', value: 'ăn gian' },
-  { type: 'text', value: 'thua chưa' },
+  { type: 'text', value: 'chơi ăn gian' },
+  { type: 'text', value: 'chệu thua chưa' },
+  { type: 'text', value: 'phá mí ngừi' },
+
+  { type: 'text', value: 'đã che hiho hiho' },
+
+  { type: 'text', value: 'chơi hay dạa' },
+
 
  
 
