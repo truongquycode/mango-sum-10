@@ -259,13 +259,10 @@ export default function App() {
         return alert("Phòng đã đầy!");
       }
 
-      // [FIX 1] Lấy ngay thông tin Host hiện tại để hiển thị liền cho mình (Guest)
-      if (roomData.host) { 
-        setOpponentName(roomData.host.name); 
-        setOpponentAvatar(roomData.host.avatar); 
-      }
+      // [OLD] Dòng cũ chỉ lấy 1 lần:
+      // if (roomData.host) { setOpponentName(roomData.host.name); setOpponentAvatar(roomData.host.avatar); }
 
-      // [FIX 2] Lắng nghe realtime thông tin Host (để nếu Host đổi avatar thì mình thấy ngay)
+      // [FIX] Lắng nghe realtime thông tin Host (để nếu Host đổi avatar thì mình thấy ngay)
       const hostRef = child(roomRef, "host");
       onValue(hostRef, (snap) => {
         const hostData = snap.val();
@@ -275,7 +272,6 @@ export default function App() {
         }
       });
 
-      // Cập nhật thông tin của mình lên DB
       await update(roomRef, {
         guest: { name: myName, avatar: myAvatar, status: "JOINED" },
         status: "PLAYING",
@@ -286,14 +282,6 @@ export default function App() {
       setConn(connection);
       setIsHost(false);
       setRoomId(inputRoomId);
-
-      // [FIX QUAN TRỌNG NHẤT Ở ĐÂY] 
-      // Gửi ngay tin nhắn START chứa tên & avatar mới nhất của mình cho Host.
-      // Host nhận được tin này sẽ setOpponent... ngay lập tức trong trận đấu hiện tại.
-      connection.send({
-        type: "START",
-        payload: { name: myName, avatar: myAvatar },
-      } as MultiPlayerMessage);
 
       setupGameListeners(connection);
       setIsConnecting(false);

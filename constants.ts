@@ -100,8 +100,8 @@ export const AVATARS = [
   { type: 'text', value: 'he he' },
   { type: 'text', value: ':>>' },
   { type: 'text', value: '>w<' },
-  { type: 'text', value: 'chơi ăn gian' },
-  { type: 'text', value: 'chệu thua chưa' },
+  { type: 'text', value: 'ăn gian' },
+  { type: 'text', value: 'thua chưa' },
 
  
 
