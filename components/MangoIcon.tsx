@@ -9,12 +9,12 @@ interface MangoIconProps {
   isError?: boolean;
 }
 
-// 1. Cập nhật GhibliFace: Thêm prop isBlinking để kiểm soát chớp mắt
+// 1. Giữ nguyên GhibliFace nhưng mặc định isBlinking sẽ được tắt
 interface GhibliFaceProps {
   strokeColor?: string;
   translateY?: number;
   blinkDelay?: string;
-  isBlinking?: boolean; // <--- Thêm prop này
+  isBlinking?: boolean; 
 }
 
 const GhibliFace = ({ strokeColor = "#4b3621", translateY = 5, blinkDelay = "0s", isBlinking = false }: GhibliFaceProps) => (
@@ -23,18 +23,18 @@ const GhibliFace = ({ strokeColor = "#4b3621", translateY = 5, blinkDelay = "0s"
     <ellipse cx="28" cy="46" rx="5" ry="3" fill="#ff8a80" opacity="0.5" />
     <ellipse cx="72" cy="46" rx="5" ry="3" fill="#ff8a80" opacity="0.5" />
     
-    {/* Mắt trái: Chỉ thêm class animation nếu isBlinking = true */}
+    {/* Mắt trái */}
     <circle 
       cx="35" cy="42" r="2.5" 
       fill={strokeColor} 
-      className={isBlinking ? "animate-blink" : ""} // <--- Kiểm tra điều kiện ở đây
+      className={isBlinking ? "animate-blink" : ""} // Chỉ chớp nếu isBlinking = true
       style={{ transformOrigin: '35px 42px', animationDelay: blinkDelay }} 
     />
     {/* Mắt phải */}
     <circle 
       cx="65" cy="42" r="2.5" 
       fill={strokeColor} 
-      className={isBlinking ? "animate-blink" : ""} // <--- Kiểm tra điều kiện ở đây
+      className={isBlinking ? "animate-blink" : ""} // Chỉ chớp nếu isBlinking = true
       style={{ transformOrigin: '65px 42px', animationDelay: blinkDelay }} 
     />
     
@@ -55,7 +55,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
   const strokeColor = colorSet.stroke || colorSet.dark;
   const fillStyle = `url(#grad-${value})`;
 
-  // Giữ random delay để khi kéo một dải dài, các mắt không chớp đều tăm tắp
+  // Giữ delay ngẫu nhiên cho mỗi icon
   const blinkDelay = React.useMemo(() => `-${(Math.random() * 4).toFixed(2)}s`, []);
 
   let containerClass = '';
@@ -64,6 +64,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
   } else if (isError) {
     containerClass = 'animate-puff-error z-20';
   } else if (isSelected) {
+    // Khi được chọn, chỉ phóng to và sáng lên, KHÔNG chớp mắt nữa
     containerClass = 'scale-[1.15] z-10 brightness-110 drop-shadow-xl';
   } else {
     containerClass = 'scale-[0.95] hover:scale-[1.05] transition-transform duration-200';
@@ -117,7 +118,7 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
              <path d="M 50 15 Q 70 10 75 20 Q 65 30 50 15" fill="#66bb6a" stroke="#2e7d32" strokeWidth="1.5"/>
           </g>
         );
-      case 8: // Dưa hấu - Bell Shape
+      case 8: // Dưa hấu
         return (
           <g>
              <path d="M 5 35 Q 5 98 50 98 Q 95 98 95 35 L 5 35 Z" fill={fillStyle} stroke="none"/>
@@ -184,10 +185,9 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
     }
   };
 
-  // 2. CẬP NHẬT: Truyền isSelected vào isBlinking
   const renderFace = () => {
-      // isBlinking={isSelected} --> Chỉ chớp mắt khi đang được chọn
-      const commonProps = { blinkDelay, isBlinking: isSelected };
+      // FIX: Đặt isBlinking = false để tắt hiệu ứng chớp mắt khi kéo
+      const commonProps = { blinkDelay, isBlinking: false };
 
       if (value === 6) return <GhibliFace strokeColor="#000000ff" translateY={-5} {...commonProps} />; 
       if (value === 1) return <GhibliFace strokeColor="#21242aff" translateY={5} {...commonProps} />; 
@@ -225,7 +225,6 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
       </svg>
       
       <style>{`
-        /* Chớp mắt */
         @keyframes blink {
           0%, 96%, 100% { transform: scaleY(1); }
           98% { transform: scaleY(0.1); }
@@ -234,7 +233,6 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
           animation: blink 2s infinite;
         }
 
-        /* Các hiệu ứng tương tác game */
         @keyframes drop-out { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100px) rotate(20deg); opacity: 0; } }
         .animate-drop-out { animation: drop-out 0.6s ease-in forwards; }
         @keyframes puff-error { 0% { transform: scale(1); } 40% { transform: scale(1.3) rotate(-5deg); } 60% { transform: scale(1.3) rotate(5deg); } 100% { transform: scale(1) rotate(0); } }
