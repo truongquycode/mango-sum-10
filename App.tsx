@@ -319,8 +319,9 @@ export default function App() {
     
     const totalItems = Object.values(itemsUsedStats || {}).reduce((sum, count) => sum + count, 0);
     setMatchItemsCount(totalItems);
-    if (isMultiplayer && finalOpponentScore !== undefined)
-      setOpponentScore(finalOpponentScore);
+    if (isMultiplayer && finalOpponentScore !== undefined) {
+       setOpponentScore(finalOpponentScore);
+    }
 
     if (!isMultiplayer) {
       if (score > highScore) {
@@ -339,6 +340,11 @@ export default function App() {
 
     setIsMeReady(false);
     setGameState(GameState.GAME_OVER);
+    let savedOpponentScore = undefined;
+    if (isMultiplayer) {
+        // Ưu tiên lấy tham số truyền vào, nếu không có thì lấy State hiện tại, nếu không có nữa thì là 0
+        savedOpponentScore = finalOpponentScore !== undefined ? finalOpponentScore : opponentScore;
+    }
     
     const newRecord: MatchRecord = {
         id: Date.now().toString(),
@@ -346,6 +352,11 @@ export default function App() {
         mode: isMultiplayer ? "MULTIPLAYER" : "SOLO",
         myName: myName,
         myScore: score,
+        opponentName: isMultiplayer ? opponentName : undefined,
+        
+        // Dùng biến đã tính toán ở trên
+        opponentScore: savedOpponentScore, 
+        
         itemsUsed: itemsUsedStats as any,
         opponentItemsUsed: opponentItemsStats,
         duration: duration || 120

@@ -96,9 +96,12 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
   const getMatchStatus = (record: MatchRecord) => {
     if (record.mode === "SOLO") return "SOLO";
-    if (record.opponentScore === undefined) return "ERROR";
-    if (record.myScore > record.opponentScore) return "WIN";
-    if (record.myScore < record.opponentScore) return "LOSE";
+    
+    // Nếu opponentScore bị undefined (dữ liệu cũ lỗi), ta coi như là 0 để tính toán
+    const oppScore = record.opponentScore ?? 0;
+
+    if (record.myScore > oppScore) return "WIN";
+    if (record.myScore < oppScore) return "LOSE";
     return "DRAW";
   };
 
@@ -527,17 +530,18 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                       </div>
                       <div className="flex flex-col items-end w-1/3">
                         <span className="text-[10px] font-bold text-gray-400 truncate w-full text-right mb-1">
-                          {match.opponentName || "MÁY"}
+                          {match.mode === "SOLO"
+                            ? "MÁY"
+                            : match.opponentName || "Đối thủ"}{" "}
+                          {/* Nếu ko có tên thì hiện "Đối thủ" thay vì "MÁY" */}
                         </span>
                         <span
                           className={`text-2xl font-black ${
-                            match.opponentScore !== undefined &&
-                            match.opponentScore > match.myScore
+                            (match.opponentScore ?? 0) > match.myScore
                               ? "text-orange-500"
                               : "text-gray-700"
                           }`}
-                        >
-                          {match.opponentScore ?? "-"}
+                        >{match.mode === "SOLO" ? "-" : (match.opponentScore ?? 0)}
                         </span>
                       </div>
                     </div>

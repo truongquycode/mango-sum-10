@@ -47,6 +47,8 @@ export interface MatchRecord {
   opponentName?: string;
   myScore: number;
   opponentScore?: number;
+  // [OPTIONAL] Thêm avatar nếu muốn hiển thị đẹp hơn
+  opponentAvatar?: any;
   itemsUsed: Record<string, number>;
   opponentItemsUsed?: Record<string, number>;
   duration?: number;
