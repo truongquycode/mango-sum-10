@@ -23,6 +23,8 @@ import { ITEM_CONFIG, REACTION_EMOJIS } from "../constants";
 import { ThemeType } from "./StartScreen/SettingsModal";
 import { KawaiiMangoIcon } from './KawaiiMangoIcon';
 import { PokemonMangoIcon } from './PokemonMangoIcon';
+import { DragonBallMangoIcon } from './DragonBallMangoIcon';
+
 
 
 interface GameProps {
@@ -991,6 +993,7 @@ export const Game: React.FC<GameProps> = ({
 
   const FruitIcon = React.useMemo(() => {
     switch (theme) {
+      case 'DRAGONBALL': return DragonBallMangoIcon;
       case 'POKEMON': return PokemonMangoIcon;
       case 'KAWAII': return KawaiiMangoIcon;
       case "PIXEL":

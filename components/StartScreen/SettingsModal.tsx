@@ -7,6 +7,8 @@ import { PixelMangoIcon } from '../PixelMangoIcon';
 import { PaperMangoIcon } from '../PaperMangoIcon';
 import { KawaiiMangoIcon } from '../KawaiiMangoIcon';
 import { PokemonMangoIcon } from '../PokemonMangoIcon';
+import { DragonBallMangoIcon } from '../DragonBallMangoIcon';
+
 
 
 export type ThemeType = 'DEFAULT' | 'PIXEL' | 'PAPER';
@@ -25,6 +27,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentTh
   { id: 'PIXEL', name: 'Cổ Điển (8-bit)', Component: PixelMangoIcon },
   { id: 'PAPER', name: 'Giấy Dán (Cutout)', Component: PaperMangoIcon },
   { id: 'POKEMON', name: 'Bảo Bối (Monster)', Component: PokemonMangoIcon },
+  { id: 'DRAGONBALL', name: 'Ngọc Rồng (Manga)', Component: DragonBallMangoIcon },
 ];
 
   return (
@@ -34,13 +37,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentTh
         className="absolute top-2 right-2 text-gray-400 hover:text-red-500 w-8 h-8 flex items-center justify-center font-bold"
       >✕</button>
       
-      <div className="text-center mb-6">
+      <div className="text-center mb-4"> {/* Giảm mb-6 xuống mb-4 cho gọn */}
         <div className="text-5xl mb-2 animate-spin-slow">⚙️</div>
         <h3 className="text-2xl font-black text-cyan-600 uppercase">Cài Đặt</h3>
         <p className="text-gray-500 text-xs">Chọn phong cách trái cây nà</p>
       </div>
 
-      <div className="space-y-3">
+      {/* --- [BẮT ĐẦU SỬA] --- */}
+      {/* Thêm div bao ngoài với max-h-64 (khoảng 3 dòng) và overflow-y-auto */}
+      <div className="space-y-3 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
         {themes.map((theme) => {
           const isSelected = currentTheme === theme.id;
           const DemoIcon = theme.Component;
@@ -51,13 +56,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentTh
               onClick={() => onSelectTheme(theme.id as ThemeType)}
               className={`w-full flex items-center gap-4 p-3 rounded-2xl border-2 transition-all ${
                 isSelected 
-                  ? 'border-cyan-500 bg-cyan-50 shadow-md scale-[1.02]' 
+                  ? 'border-cyan-500 bg-cyan-50 shadow-md scale-[0.98]' 
                   : 'border-gray-200 hover:border-cyan-200 hover:bg-gray-50'
               }`}
             >
               {/* Preview Icon */}
-              <div className="w-12 h-12 shrink-0">
-                {/* @ts-ignore - Demo quả số 5 (Chuối) */}
+              <div className="w-12 h-12 shrink-0 flex items-center justify-center">
+                {/* @ts-ignore */}
                 <DemoIcon value={5} isSelected={false} isRemoved={false} />
               </div>
 
@@ -73,6 +78,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, currentTh
           )
         })}
       </div>
+      {/* --- [KẾT THÚC SỬA] --- */}
 
       <Button onClick={onClose} className="w-full mt-6 shadow-cyan-200">
         Xong Rùi
