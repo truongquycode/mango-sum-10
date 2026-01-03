@@ -1,14 +1,13 @@
 // App.tsx
 import React, { useState, useEffect } from "react";
 import { GameState, MultiPlayerMessage, MatchRecord } from "./types";
-import { StartScreen } from "./components/StartScreen";
+import { StartScreen } from "./components/StartScreen/StartScreen";
 import { Game } from "./components/Game";
 import { GameOverScreen } from "./components/GameOverScreen";
 import { LobbyScreen } from "./components/LobbyScreen";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { AVATARS, GAME_DURATION_SECONDS } from "./constants";
 import { db } from "./firebaseConfig";
-// [CHANGE] Thêm onChildAdded
 import {
   ref,
   set,
@@ -59,6 +58,9 @@ export default function App() {
   // ID phiên chơi
   const [gameSessionId, setGameSessionId] = useState<number>(Date.now());
 
+  const [matchDuration, setMatchDuration] = useState(0);
+  const [matchItemsCount, setMatchItemsCount] = useState(0);
+
   // Init
   useEffect(() => {
     const saved = localStorage.getItem("mango-sum10-highscore");
@@ -67,18 +69,15 @@ export default function App() {
     const savedName = localStorage.getItem("mango-player-name");
     if (savedName) setMyName(savedName);
 
-    // --- SỬA ĐOẠN NÀY ---
     const savedAvatarRaw = localStorage.getItem("mango-player-avatar");
     if (savedAvatarRaw) {
       try {
-        // 1. Thử coi nó là dạng JSON Object mới (VD: {"type":"image",...})
         const parsed = JSON.parse(savedAvatarRaw);
 
         // Tìm avatar trong danh sách có 'value' trùng khớp
         const found = AVATARS.find((a) => a.value === parsed.value);
         if (found) setMyAvatar(found);
       } catch (e) {
-        // 2. Nếu lỗi (không phải JSON), thì nó là dạng Text cũ (VD: "🐶")
         // Tìm avatar trong danh sách có 'value' trùng với text đó
         const found = AVATARS.find((a) => a.value === savedAvatarRaw);
         if (found) setMyAvatar(found);
@@ -116,10 +115,9 @@ export default function App() {
 
   const startMultiplayerMatch = () => {
     if (roomId) {
-      // 1. Reset cờ restart
+      // Reset cờ restart
       update(ref(db, `rooms/${roomId}/restart`), { host: false, guest: false });
 
-      // 2. [FIX QUAN TRỌNG] Host xóa tin nhắn cũ để tránh game mới nhận tin nhắn của game cũ
       // Việc này ngăn chặn lỗi "Reset game khi ghi điểm" do nhận nhầm tin nhắn cũ
       if (isHost) {
         remove(ref(db, `rooms/${roomId}/messages`));
@@ -136,7 +134,6 @@ export default function App() {
   const generateRandom4Digit = () =>
     Math.floor(1000 + Math.random() * 9000).toString();
 
-  // --- [FIX] LOGIC KẾT NỐI MỚI (Dùng onChildAdded) ---
   const createFirebaseConnection = (
     currentRoomId: string,
     role: "host" | "guest"
@@ -151,15 +148,12 @@ export default function App() {
     // Mốc thời gian bắt đầu kết nối
     const connectionStartTime = Date.now();
 
-    // [FIX] Dùng onChildAdded thay vì onValue
     // onChildAdded: Đảm bảo KHÔNG BAO GIỜ MẤT tin nhắn, xử lý từng cái một theo thứ tự
     const unsubscribe = onChildAdded(messagesRef, (snapshot) => {
       const msg = snapshot.val();
       if (!msg) return;
 
       // Logic lọc tin nhắn:
-      // 1. msg.sender !== role: Không nhận tin của chính mình
-      // 2. msg.timestamp > connectionStartTime: Không nhận tin nhắn lịch sử (cũ quá)
       if (msg.sender !== role && msg.timestamp > connectionStartTime) {
         listeners["data"]?.forEach((cb) => cb(msg.payload));
       }
@@ -259,10 +253,6 @@ export default function App() {
         return alert("Phòng đã đầy!");
       }
 
-      // [OLD] Dòng cũ chỉ lấy 1 lần:
-      // if (roomData.host) { setOpponentName(roomData.host.name); setOpponentAvatar(roomData.host.avatar); }
-
-      // [FIX] Lắng nghe realtime thông tin Host (để nếu Host đổi avatar thì mình thấy ngay)
       const hostRef = child(roomRef, "host");
       onValue(hostRef, (snap) => {
         const hostData = snap.val();
@@ -293,7 +283,12 @@ export default function App() {
     }
   };
 
-  const handleStartSolo = () => {
+  const handleStartSolo = (name?: string) => {
+    if (name) {
+        setMyName(name);
+        localStorage.setItem("mango-player-name", name);
+    }
+    
     setIsMultiplayer(false);
     setIsHost(true);
     setGameSessionId(Date.now());
@@ -310,6 +305,10 @@ export default function App() {
     startTime?: number
   ) => {
     setFinalScore(score);
+    setMatchDuration(duration || 0);
+    
+    const totalItems = Object.values(itemsUsedStats || {}).reduce((sum, count) => sum + count, 0);
+    setMatchItemsCount(totalItems);
     if (isMultiplayer && finalOpponentScore !== undefined)
       setOpponentScore(finalOpponentScore);
 
@@ -318,31 +317,31 @@ export default function App() {
         setHighScore(score);
         localStorage.setItem("mango-sum10-highscore", score.toString());
       }
+
+      const logEntry = {
+        name: myName,
+        timestamp: Date.now(),
+        action: 'SOLO_PRACTICE',
+        score: score 
+      };
+      push(ref(db, 'practice_logs'), logEntry);
     }
 
     setIsMeReady(false);
     setGameState(GameState.GAME_OVER);
-
+    
     const newRecord: MatchRecord = {
-      id: Date.now().toString(),
-      timestamp: startTime || Date.now(),
-      mode: isMultiplayer ? "MULTIPLAYER" : "SOLO",
-      myName: myName,
-      opponentName: isMultiplayer ? opponentName : undefined,
-      myScore: score,
-      opponentScore: isMultiplayer
-        ? finalOpponentScore !== undefined
-          ? finalOpponentScore
-          : opponentScore
-        : undefined,
-      itemsUsed: itemsUsedStats as any,
-      opponentItemsUsed: opponentItemsStats,
-      duration: duration || 120
+        id: Date.now().toString(),
+        timestamp: startTime || Date.now(),
+        mode: isMultiplayer ? "MULTIPLAYER" : "SOLO",
+        myName: myName,
+        myScore: score,
+        itemsUsed: itemsUsedStats as any,
+        opponentItemsUsed: opponentItemsStats,
+        duration: duration || 120
     };
     const currentHistory = localStorage.getItem("mango-match-history");
-    let history: MatchRecord[] = currentHistory
-      ? JSON.parse(currentHistory)
-      : [];
+    let history: MatchRecord[] = currentHistory ? JSON.parse(currentHistory) : [];
     history.push(newRecord);
     if (history.length > 20) history = history.slice(history.length - 20);
     localStorage.setItem("mango-match-history", JSON.stringify(history));
@@ -398,7 +397,10 @@ export default function App() {
         />
       )}
       {gameState === GameState.HISTORY && (
-        <HistoryScreen onBack={() => setGameState(GameState.MENU)} />
+        <HistoryScreen 
+          onBack={() => setGameState(GameState.MENU)} 
+          playerName={myName}
+        />
       )}
       {gameState === GameState.LOBBY && (
         <LobbyScreen
@@ -444,6 +446,10 @@ export default function App() {
             isWaitingForOpponent={isMultiplayer && isMeReady}
             myName={myName}
             opponentName={opponentName}
+            myAvatar={myAvatar}
+            opponentAvatar={opponentAvatar}
+            duration={matchDuration}
+            itemsUsedCount={matchItemsCount}
           />
         </>
       )}

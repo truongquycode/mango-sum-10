@@ -1,30 +1,19 @@
 // constants.ts
-
 export const GRID_ROWS = 10;
 export const GRID_COLS = 10;
 export const TARGET_SUM = 10;
 export const GAME_DURATION_SECONDS = 120;
 export const BASE_SCORE = 10;
 
-// CẬP NHẬT: Màu sắc tương ứng với 9 loại trái cây mới
-// 1: Nho (Tím)
-// 2: Lê (Xanh nhạt)
-// 3: Chanh vàng (Vàng)
-// 4: Cam (Cam)
-// 5: Dưa hấu (Đỏ)
-// 6: Bơ (Xanh lá đậm)
-// 7: Dứa (Vàng nâu)
-// 8: Măng cụt/Việt quất (Tím than)
-// 9: Dâu tây (Đỏ tươi)
 export const MANGO_COLORS: Record<number, { main: string, light: string, dark: string, stroke: string }> = {
   1: { main: '#9d8ec4', light: '#dcd6f7', dark: '#6a5acd', stroke: '#4a3b75' }, // Nho (Tím phấn)
   2: { main: '#e3f09b', light: '#f7fcde', dark: '#aecb47', stroke: '#5c6b24' }, // Lê (Xanh cốm nhạt)
   3: { main: '#fdd835', light: '#fff59d', dark: '#fbc02d', stroke: '#af8613' }, // Chanh (Vàng trứng)
   4: { main: '#ffab91', light: '#ffccbc', dark: '#ff7043', stroke: '#bf360c' }, // Cam (Cam san hô)
-  8: { main: '#ef5350', light: '#ffcdd2', dark: '#c62828', stroke: '#8e0000' }, // Dưa hấu (Đỏ dưa)
+  5: { main: '#fff176', light: '#ffffbf', dark: '#fdd835', stroke: '#bf9e17' }, // Chuối (Vàng kem)
   6: { main: '#a5d6a7', light: '#e8f5e9', dark: '#66bb6a', stroke: '#2e7d32' }, // Bơ (Xanh bơ dịu)
   7: { main: '#fbc02d', light: '#fff9c4', dark: '#f57f17', stroke: '#e65100' }, // Dứa (Vàng nghệ)
-  5: { main: '#fff176', light: '#ffffbf', dark: '#fdd835', stroke: '#bf9e17' }, // Chuối (Vàng kem)
+  8: { main: '#ef5350', light: '#ffcdd2', dark: '#c62828', stroke: '#8e0000' }, // Dưa hấu (Đỏ dưa)
   9: { main: '#ff8a80', light: '#ffebee', dark: '#ec1e1eff', stroke: '#ff0000ff' }, // Dâu (Hồng đỏ)
 };
 
@@ -41,15 +30,14 @@ export const ITEM_CONFIG: Record<ItemType, { name: string, icon: string, desc: s
 };
 
 export const AVATARS = [
-  // --- NHÓM 2: VÍ DỤ CHỖ ĐỂ GẮN ẢNH (Bạn có thể bỏ comment và thay link) ---
-  // { type: 'image', value: 'https://cdn-icons-png.flaticon.com/512/147/147142.png' },
+  // --- NHÓM 1: ẢNH ĐẠI DIỆN ---
   { type: 'image', value: '/assets/avatar/1.webp' },
   { type: 'image', value: '/assets/avatar/2.webp' },
   { type: 'image', value: '/assets/avatar/3.webp' },
   { type: 'image', value: '/assets/avatar/4.webp' },
   { type: 'image', value: '/assets/avatar/5.webp' },
 
-  // --- NHÓM 1: EMOJI (Từ danh sách bạn gửi) ---
+  // --- NHÓM 1: EMOJI ---
   { type: 'text', value: '🕊️' },
   { type: 'text', value: '🐢' },
   { type: 'text', value: '🐒' },
@@ -76,18 +64,16 @@ export const AVATARS = [
   
 
 ];export const REACTION_EMOJIS = [
-   // --- NHÓM 2: HÌNH ẢNH / MEME (Mới) ---
-  // Bạn thay đường dẫn ảnh thật của bạn vào phần 'value' nhé
+   // --- NHÓM 2: HÌNH ẢNH / MEME ---
   { type: 'image', value: '/assets/meme/1.png' }, 
   { type: 'image', value: '/assets/meme/2.png' }, 
   { type: 'image', value: '/assets/meme/3.png' }, 
-  // { type: 'image', value: '/assets/meme/1.gif' },
   { type: 'image', value: '/assets/meme/2.gif' },
   { type: 'image', value: '/assets/meme/3.gif' },
   { type: 'image', value: '/assets/meme/4.gif' },
   { type: 'image', value: '/assets/meme/5.gif' },
   { type: 'image', value: '/assets/meme/6.gif' },
-  // --- NHÓM 1: TEXT & EMOJI (Cũ) ---
+  // --- NHÓM 1: TEXT & EMOJI---
   { type: 'text', value: '🤣' },
   // { type: 'text', value: '😍' },
   { type: 'text', value: '😡' },
@@ -105,12 +91,6 @@ export const AVATARS = [
   { type: 'text', value: 'chơi ăn gian' },
   { type: 'text', value: 'chệu thua chưa' },
   { type: 'text', value: 'phá mí ngừi' },
-
   { type: 'text', value: 'đã che hiho hiho' },
-
   { type: 'text', value: 'chơi hay dạa' },
-
-
- 
-
 ];

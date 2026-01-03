@@ -1,5 +1,5 @@
 // components/LobbyScreen.tsx
-import React, { useState, useEffect, useRef, ChangeEvent } from "react";
+import React, { useState, useEffect, useRef, ChangeEvent, ClipboardEvent } from "react";
 import { Button } from "./UI/Button";
 import { AVATARS } from "../constants";
 
@@ -10,8 +10,8 @@ interface LobbyScreenProps {
   isConnecting: boolean;
   myName: string;
   setMyName: (name: string) => void;
-  myAvatar: string;
-  setMyAvatar: (avatar: string) => void;
+  myAvatar: string | { type: string, value: string };
+  setMyAvatar: (avatar: any) => void;
 }
 
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({
@@ -78,13 +78,45 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     }
   };
 
+  // --- [UPDATE] Xử lý sự kiện Dán tự nhiên (Paste Event) ---
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    // Ngăn hành vi dán mặc định để ta tự xử lý (nếu muốn validate kỹ)
+    e.preventDefault();
+    
+    // Lấy dữ liệu từ clipboard event (Không cần xin quyền trình duyệt)
+    const pastedData = e.clipboardData.getData('text').trim();
+
+    // Kiểm tra nếu đúng là 4 số
+    if (/^\d{4}$/.test(pastedData)) {
+        setRemoteCode(pastedData);
+        // Có thể tự động Join luôn nếu muốn:
+        // onJoin(pastedData);
+    } else {
+        // Nếu không phải 4 số thì vẫn cho dán nhưng chỉ lấy số (hoặc báo lỗi nhẹ)
+        const numericOnly = pastedData.replace(/\D/g, '').slice(0, 4);
+        setRemoteCode(numericOnly);
+    }
+  };
+
+  // Nút dán thủ công (Vẫn giữ để backup, cái này sẽ hỏi quyền)
+  const handleManualPasteBtn = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        const trimmedText = text.trim();
+        if (/^\d{4}$/.test(trimmedText)) {
+             setRemoteCode(trimmedText);
+        }
+      }
+    } catch (error) {
+      console.log("Cần quyền clipboard");
+    }
+  };
+
   const renderAvatar = (avatar: any) => {
     if (!avatar) return <span>👤</span>;
-    // Hỗ trợ cả string cũ (đề phòng)
-    if (typeof avatar === "string") return <span>{avatar}</span>;
-
-    // Nếu là ảnh
-    if (avatar.type === "image") {
+    
+    if (typeof avatar === 'object' && avatar.type === 'image') {
       return (
         <img
           src={avatar.value}
@@ -94,30 +126,24 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
       );
     }
 
-    
-
-    // Nếu là text
-    return <span>{avatar.value}</span>;
+    const val = typeof avatar === 'object' ? avatar.value : avatar;
+    return <span className="leading-none">{val}</span>;
   };
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
-      // Kiểm tra định dạng file (chỉ cho phép ảnh)
       if (!file.type.startsWith("image/")) {
         alert("Vui lòng chọn file ảnh (PNG, JPG, GIF)!");
         return;
       }
 
-      // Đọc file và chuyển thành dạng Data URL (chuỗi base64)
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        // Cập nhật state avatar với format ảnh mới
         setMyAvatar({ type: "image", value: result });
         playSelectSound();
-        // Reset input để có thể chọn lại cùng một file nếu muốn
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -138,13 +164,13 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               <p className="text-gray-500 text-sm">Chọn avatar và nhập tên</p>
             </div>
 
+            {/* AVATAR GRID */}
             <div className="grid grid-cols-5 gap-2 p-2 bg-gray-100 rounded-xl max-h-40 overflow-y-auto custom-scrollbar">
               <button
-                onClick={() => fileInputRef.current?.click()} // Kích hoạt input ẩn khi bấm nút này
+                onClick={() => fileInputRef.current?.click()} 
                 className="text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all overflow-hidden bg-gray-300 hover:bg-gray-400 text-white shadow-sm border-2 border-white"
                 title="Tải ảnh lên"
               >
-                {/* Icon Upload (Mũi tên lên) */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="h-6 w-6"
@@ -161,26 +187,23 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 </svg>
               </button>
               {AVATARS.map((av, idx) => {
-                // Kiểm tra xem avatar này có đang được chọn không (so sánh value)
                 const isSelected =
-                  (typeof myAvatar === "object" &&
-                    myAvatar.value === av.value) ||
+                  (typeof myAvatar === "object" && myAvatar.value === av.value) ||
                   myAvatar === av;
 
                 return (
                   <button
-                    key={idx} // Dùng index làm key cho an toàn
+                    key={idx} 
                     onClick={() => {
                       setMyAvatar(av);
                       playSelectSound();
                     }}
-                    className={`text-2xl w-10 h-10 rounded-full flex items-center justify-center transition-all overflow-hidden ${
+                    className={`text-4xl w-10 h-10 rounded-full flex items-center justify-center transition-all overflow-hidden ${
                       isSelected
                         ? "bg-cyan-500 shadow-lg scale-110 border-2 border-white"
                         : "bg-white hover:bg-gray-200"
                     }`}
                   >
-                    {/* Gọi hàm render để hiển thị ảnh hoặc text */}
                     {renderAvatar(av)}
                   </button>
                 );
@@ -191,16 +214,17 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               type="file"
               ref={fileInputRef}
               onChange={handleFileUpload}
-              accept="image/png, image/jpeg, image/gif, image/webp" // Chỉ cho phép chọn các loại ảnh này
-              className="hidden" // Ẩn thẻ này đi
+              accept="image/png, image/jpeg, image/gif, image/webp" 
+              className="hidden" 
               style={{ display: "none" }}
             />
 
             <div className="space-y-4">
               <div className="flex flex-col items-center">
-                <div className="text-6xl mb-2 animate-bounce w-24 h-24 flex items-center justify-center">
+                <div className="text-6xl mb-2 animate-bounce w-24 h-24 rounded-full border-4 border-cyan-300 overflow-hidden bg-white flex items-center justify-center shadow-md">
                   {renderAvatar(myAvatar)}
                 </div>
+                
                 <input
                   type="text"
                   placeholder="Tên của em..."
@@ -208,7 +232,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   onChange={(e) => setMyName(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border-2 border-cyan-200 focus:border-cyan-500 focus:outline-none text-center font-bold text-gray-700 text-xl"
                   maxLength={12}
-                  // autoFocus
                   onKeyDown={(e) => e.key === "Enter" && handleConfirmName()}
                 />
               </div>
@@ -236,8 +259,8 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               <h2 className="text-3xl font-black text-cyan-600 mb-1">
                 Phòng Chơi
               </h2>
-              <div className="flex items-center justify-center gap-2 text-gray-500 text-sm bg-gray-100 py-1 px-3 rounded-full mx-auto w-fit">
-                <div className="w-8 h-8 flex items-center justify-center text-2xl">
+              <div className="flex items-center justify-center gap-2 text-gray-500 text-sm bg-gray-100 py-1 px-3 rounded-full mx-auto w-fit border border-gray-200">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-gray-300 flex items-center justify-center text-2xl">
                   {renderAvatar(myAvatar)}
                 </div>
                 <span className="font-bold text-gray-700">{myName}</span>
@@ -283,14 +306,30 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             </div>
 
             <div className="space-y-3">
-              <input
-                type="number"
-                placeholder="Nhập mã 4 số của ảnh/ẻm..."
-                value={remoteCode}
-                onChange={(e) => setRemoteCode(e.target.value.slice(0, 4))}
-                onFocus={(e) => e.target.select()}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-cyan-400 focus:outline-none font-mono text-center text-xl placeholder:text-base placeholder:font-sans transition-colors"
-              />
+              <div className="relative w-full">
+                  {/* [UPDATE] Thêm sự kiện onPaste */}
+                  <input
+                    type="number"
+                    placeholder="Nhập mã 4 số của ảnh/ẻm..."
+                    value={remoteCode}
+                    onChange={(e) => setRemoteCode(e.target.value.slice(0, 4))}
+                    onFocus={(e) => e.target.select()} // Chỉ bôi đen, không tự đọc clipboard nữa để tránh popup
+                    onPaste={handlePaste} // Bắt sự kiện dán
+                    className="w-full px-4 py-3 pr-12 rounded-xl border-2 border-gray-200 focus:border-cyan-400 focus:outline-none font-mono text-center text-xl placeholder:text-base placeholder:font-sans transition-colors"
+                  />
+                  {/* Nút DÁN thủ công (vẫn giữ để backup, nhưng sẽ hỏi quyền) */}
+                  <button 
+                    onClick={handleManualPasteBtn}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-600 bg-gray-100 hover:bg-cyan-50 p-1.5 rounded-lg transition-colors"
+                    title="Dán mã từ clipboard"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                        <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                    </svg>
+                  </button>
+              </div>
+
               <Button
                 onClick={() => onJoin(remoteCode)}
                 disabled={remoteCode.length < 4 || isConnecting}

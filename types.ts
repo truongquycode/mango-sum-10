@@ -34,7 +34,6 @@ export interface GameItem {
 }
 
 export interface MultiPlayerMessage {
-  // THÊM 'PLAYER_FINISHED' VÀ 'READY' VÀO ĐÂY
   type: 'START' | 'GRID_UPDATE' | 'SYNC_MAP' | 'UPDATE_SCORE' | 'GAME_OVER' | 'RESTART' | 'TIME_UPDATE' | 'READY' 
         | 'ITEM_ATTACK' | 'REQUEST_MAP' | 'SEND_EMOJI' | 'PLAYER_FINISHED';
   payload?: any;

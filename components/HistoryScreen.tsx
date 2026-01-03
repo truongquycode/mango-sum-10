@@ -20,7 +20,7 @@ const FILTER_OPTIONS = [
 
 export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   onBack,
-  playerName = "Quy",
+  playerName = "Bạn",
 }) => {
   const [history, setHistory] = useState<MatchRecord[]>([]);
 
@@ -272,7 +272,6 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
           {/* --- FILTER BAR --- */}
           <div className="p-3 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2 items-center justify-center relative z-30">
-            {/* 1. NÚT MỞ LỊCH (CUSTOM) */}
             <div className="relative group min-w-[160px]" ref={calendarRef}>
               <button
                 onClick={() => setShowCalendar(!showCalendar)}
@@ -370,7 +369,6 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               )}
             </div>
 
-            {/* 2. CHỌN KẾT QUẢ (CUSTOM DROPDOWN - Sửa lại chỗ này) */}
             <div className="relative flex-1 min-w-[140px]" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}

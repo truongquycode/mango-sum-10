@@ -9,7 +9,6 @@ interface MangoIconProps {
   isError?: boolean;
 }
 
-// 1. Giữ nguyên GhibliFace nhưng mặc định isBlinking sẽ được tắt
 interface GhibliFaceProps {
   strokeColor?: string;
   translateY?: number;
@@ -118,19 +117,18 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
              <path d="M 50 15 Q 70 10 75 20 Q 65 30 50 15" fill="#66bb6a" stroke="#2e7d32" strokeWidth="1.5"/>
           </g>
         );
-      case 8: // Dưa hấu
+        case 5: // Chuối
         return (
-          <g>
-             <path d="M 5 35 Q 5 98 50 98 Q 95 98 95 35 L 5 35 Z" fill={fillStyle} stroke="none"/>
-             <path d="M 5 35 Q 5 98 50 98 Q 95 98 95 35" fill="none" stroke="#e8f5e9" strokeWidth="6" strokeLinecap="round"/>
-             <path d="M 2 35 Q 2 101 50 101 Q 98 101 98 35" fill="none" stroke="#2e7d32" strokeWidth="4" strokeLinecap="round"/>
-             <g fill="#3e2723">
-                 <circle cx="20" cy="50" r="3.5" /> <circle cx="80" cy="50" r="3.5" />
-                 <circle cx="35" cy="65" r="3.5" /> <circle cx="65" cy="65" r="3.5" />
-                 <circle cx="50" cy="78" r="3.5" />
-             </g>
+          <g transform="rotate(5 50 50)">
+             <path d="M 32 60 Q 25 15 50 10 Q 75 15 68 60" fill={colorSet.light} stroke={strokeColor} strokeWidth="2" />
+             <path d="M 32 60 Q 50 85 68 60 L 60 85 Q 50 92 40 85 Z" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
+             <path d="M 32 60 Q 10 60 15 75 Q 30 80 38 70" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
+             <path d="M 68 60 Q 90 60 85 75 Q 70 80 62 70" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
+             <path d="M 32 60 Q 50 70 68 60" fill="none" stroke={strokeColor} strokeWidth="2" />
+             <path d="M 45 88 L 45 94 L 55 94 L 55 88 Z" fill="#6d4c41" stroke={strokeColor} strokeWidth="1.5" />
           </g>
         );
+      
       case 6: // Bơ
         return (
           <g>
@@ -155,15 +153,17 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
             </g>
           </g>
         );
-      case 5: // Chuối
+      case 8: // Dưa hấu
         return (
-          <g transform="rotate(5 50 50)">
-             <path d="M 32 60 Q 25 15 50 10 Q 75 15 68 60" fill={colorSet.light} stroke={strokeColor} strokeWidth="2" />
-             <path d="M 32 60 Q 50 85 68 60 L 60 85 Q 50 92 40 85 Z" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
-             <path d="M 32 60 Q 10 60 15 75 Q 30 80 38 70" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
-             <path d="M 68 60 Q 90 60 85 75 Q 70 80 62 70" fill={colorSet.main} stroke={strokeColor} strokeWidth="2" />
-             <path d="M 32 60 Q 50 70 68 60" fill="none" stroke={strokeColor} strokeWidth="2" />
-             <path d="M 45 88 L 45 94 L 55 94 L 55 88 Z" fill="#6d4c41" stroke={strokeColor} strokeWidth="1.5" />
+          <g>
+             <path d="M 5 35 Q 5 98 50 98 Q 95 98 95 35 L 5 35 Z" fill={fillStyle} stroke="none"/>
+             <path d="M 5 35 Q 5 98 50 98 Q 95 98 95 35" fill="none" stroke="#e8f5e9" strokeWidth="6" strokeLinecap="round"/>
+             <path d="M 2 35 Q 2 101 50 101 Q 98 101 98 35" fill="none" stroke="#2e7d32" strokeWidth="4" strokeLinecap="round"/>
+             <g fill="#3e2723">
+                 <circle cx="20" cy="50" r="3.5" /> <circle cx="80" cy="50" r="3.5" />
+                 <circle cx="35" cy="65" r="3.5" /> <circle cx="65" cy="65" r="3.5" />
+                 <circle cx="50" cy="78" r="3.5" />
+             </g>
           </g>
         );
       case 9: // Dâu tây
@@ -186,7 +186,6 @@ export const MangoIcon: React.FC<MangoIconProps> = React.memo(({ value, isSelect
   };
 
   const renderFace = () => {
-      // FIX: Đặt isBlinking = false để tắt hiệu ứng chớp mắt khi kéo
       const commonProps = { blinkDelay, isBlinking: false };
 
       if (value === 6) return <GhibliFace strokeColor="#000000ff" translateY={-5} {...commonProps} />; 

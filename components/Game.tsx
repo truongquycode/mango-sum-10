@@ -253,7 +253,6 @@ export const Game: React.FC<GameProps> = ({
     osc.start(); osc.stop(currTime + 0.3);
   }, [isMuted, streak]);
 
-  // --- CẬP NHẬT: HÀM TẠO ÂM THANH CHO STICKER/GIF ---
   const playStickerSound = useCallback((item: { type: string, value: string }) => {
     if (isMuted || !audioContextRef.current) return;
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
@@ -409,7 +408,7 @@ export const Game: React.FC<GameProps> = ({
           handleShowEmoji(msg.payload);
       }
       if (msg.type === 'ITEM_ATTACK') {
-          const { effect } = msg.payload;
+          const { effect, amount } = msg.payload; // Lấy amount từ payload gửi sang
           if (effect === 'BOMB') {
              setTimeLeft(prev => Math.max(0, prev - 10));
              setEffectMessage({ text: "Dính Bom! -10s", icon: "💣", subText: "Đau quá!" });
@@ -422,9 +421,17 @@ export const Game: React.FC<GameProps> = ({
              setEffectMessage({ text: "Giảm Điểm", icon: "📉", subText: "Chỉ nhận 50% điểm" });
              setTimeout(() => { setScoreDebuff(1); setEffectMessage(null); }, 10000);
           } else if (effect === 'STEAL') {
-             const stolen = Math.floor(score * 0.1);
-             setScore(prev => prev - stolen);
-             setEffectMessage({ text: "Bị Cướp!", icon: "😈", subText: `Mất ${stolen} điểm` });
+             // Tính số điểm bị mất (ưu tiên lấy số từ đối thủ gửi sang để đồng bộ)
+             const stolen = amount || Math.floor(score * 0.1);
+             
+             setScore(prev => {
+                 const newScore = Math.max(0, prev - stolen);
+                 // Gửi điểm mới của mình cho đối thủ thấy ngay
+                 connection.send({ type: 'UPDATE_SCORE', payload: { score: newScore } } as MultiPlayerMessage);
+                 return newScore;
+             });
+
+             setEffectMessage({ text: "Bị Cướp!", icon: "😭", subText: `Mất ${stolen} điểm` });
              setTimeout(() => setEffectMessage(null), 2000);
           }
       }
@@ -634,7 +641,28 @@ export const Game: React.FC<GameProps> = ({
         case 'BOMB': connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'BOMB' } } as MultiPlayerMessage); break;
         case 'SPEED_UP': connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'SPEED_UP' } } as MultiPlayerMessage); break;
         case 'DEBUFF_SCORE': connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'DEBUFF_SCORE' } } as MultiPlayerMessage); break;
-        case 'STEAL': connection?.send({ type: 'ITEM_ATTACK', payload: { effect: 'STEAL', amount: Math.floor(opponentScore * 0.1) } } as MultiPlayerMessage); break;
+        case 'STEAL': 
+             // 1. Tính số điểm cướp được (10% điểm đối thủ hoặc ít nhất 100 điểm)
+             const amountToSteal = Math.max(100, Math.floor(opponentScore * 0.1));
+             
+             // 2. Gửi lệnh tấn công sang đối thủ (kèm số điểm muốn cướp)
+             connection?.send({ 
+                 type: 'ITEM_ATTACK', 
+                 payload: { effect: 'STEAL', amount: amountToSteal } 
+             } as MultiPlayerMessage); 
+             
+             // 3. [FIX] Tự cộng điểm cho mình ngay lập tức
+             setScore(prev => {
+                 const newScore = prev + amountToSteal;
+                 // 4. [FIX] Báo cho đối thủ biết điểm mình đã tăng
+                 connection?.send({ type: 'UPDATE_SCORE', payload: { score: newScore } } as MultiPlayerMessage);
+                 return newScore;
+             });
+             
+             // Hiệu ứng thông báo
+             setEffectMessage({ text: "Đã Cướp!", icon: "😈", subText: `+${amountToSteal} điểm` });
+             setTimeout(() => setEffectMessage(null), 2000); 
+             break;
       }
   };
 

@@ -5,9 +5,7 @@ import { getDatabase } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyCYKg88ibxqLz9dvUB2VgErs7aZdoVaCaA",
   authDomain: "mango-sum-10.firebaseapp.com",
-  // --- DÒNG QUAN TRỌNG BẠN ĐANG THIẾU ---
   databaseURL: "https://mango-sum-10-default-rtdb.asia-southeast1.firebasedatabase.app", 
-  // --------------------------------------
   projectId: "mango-sum-10",
   storageBucket: "mango-sum-10.firebasestorage.app",
   messagingSenderId: "124396299004",
