@@ -350,12 +350,16 @@ export default function App() {
         id: Date.now().toString(),
         timestamp: startTime || Date.now(),
         mode: isMultiplayer ? "MULTIPLAYER" : "SOLO",
+        
         myName: myName,
         myScore: score,
+        // [CẬP NHẬT] Lưu avatar của mình
+        myAvatar: myAvatar,
+
         opponentName: isMultiplayer ? opponentName : undefined,
-        
-        // Dùng biến đã tính toán ở trên
-        opponentScore: savedOpponentScore, 
+        opponentScore: isMultiplayer ? (finalOpponentScore !== undefined ? finalOpponentScore : opponentScore) : undefined,
+        // [CẬP NHẬT] Lưu avatar đối thủ
+        opponentAvatar: isMultiplayer ? opponentAvatar : undefined,
         
         itemsUsed: itemsUsedStats as any,
         opponentItemsUsed: opponentItemsStats,

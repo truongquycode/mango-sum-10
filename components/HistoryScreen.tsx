@@ -73,6 +73,26 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // --- [NEW] Helper Render Avatar ---
+  const renderHistoryAvatar = (avatar: any) => {
+    if (!avatar) return <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs">👤</div>;
+    
+    // Nếu là object ảnh {type: 'image', value: '...'}
+    if (typeof avatar === 'object' && avatar.type === 'image') {
+      return (
+        <img 
+          src={avatar.value} 
+          alt="avt" 
+          className="w-full h-full object-cover" 
+        />
+      );
+    }
+    
+    // Nếu là text/emoji
+    const val = typeof avatar === 'object' ? avatar.value : avatar;
+    return <div className="w-full h-full bg-white flex items-center justify-center text-lg">{val}</div>;
+  };
+
   // --- LOGIC LỊCH ---
   const daysInMonth = (month: number, year: number) =>
     new Date(year, month + 1, 0).getDate();
@@ -96,10 +116,8 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
   const getMatchStatus = (record: MatchRecord) => {
     if (record.mode === "SOLO") return "SOLO";
-    
-    // Nếu opponentScore bị undefined (dữ liệu cũ lỗi), ta coi như là 0 để tính toán
+    // Fix logic: Nếu không có điểm đối thủ (undefined) thì coi là 0
     const oppScore = record.opponentScore ?? 0;
-
     if (record.myScore > oppScore) return "WIN";
     if (record.myScore < oppScore) return "LOSE";
     return "DRAW";
@@ -150,10 +168,10 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
       if (match.mode === "MULTIPLAYER") {
         totalMatches++;
         totalSeconds += match.duration || GAME_DURATION_SECONDS;
-        if (match.opponentScore !== undefined) {
-          if (match.myScore > match.opponentScore) wins++;
-          else if (match.myScore < match.opponentScore) losses++;
-        }
+        // Fix logic thống kê: dùng ?? 0 để tránh undefined
+        const oppScore = match.opponentScore ?? 0;
+        if (match.myScore > oppScore) wins++;
+        else if (match.myScore < oppScore) losses++;
       }
     });
 
@@ -213,7 +231,6 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     );
   };
 
-  // Lấy thông tin option hiện tại đang chọn để hiển thị
   const currentOption =
     FILTER_OPTIONS.find((opt) => opt.value === filterResult) ||
     FILTER_OPTIONS[0];
@@ -428,7 +445,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                                   ? "bg-cyan-50 text-cyan-700"
                                   : "hover:bg-gray-50 text-gray-600"
                               }
-                           `}
+                            `}
                     >
                       <span className="text-xl w-6 text-center">
                         {opt.icon}
@@ -480,10 +497,10 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               filteredHistory.map((match) => {
                 const status = getMatchStatus(match);
                 const result = getResultDisplay(status);
+                // Ép kiểu (as any) để lấy trường opponentAvatar nếu chưa update interface kịp
                 const opponentItems = (match as any).opponentItemsUsed;
                 const hasAnyItems =
-                  (match.itemsUsed &&
-                    Object.keys(match.itemsUsed).length > 0) ||
+                  (match.itemsUsed && Object.keys(match.itemsUsed).length > 0) ||
                   (opponentItems && Object.keys(opponentItems).length > 0);
 
                 return (
@@ -491,6 +508,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                     key={match.id}
                     className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 hover:border-cyan-300 hover:shadow-md transition-all cursor-default group"
                   >
+                    {/* Header: Time & Result */}
                     <div className="flex justify-between items-center mb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-gray-400 font-mono font-bold bg-gray-100 px-2 py-1 rounded-full">
@@ -510,41 +528,69 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between bg-gray-50 rounded-2xl p-3 mb-3 border border-gray-100">
-                      <div className="flex flex-col items-start w-1/3">
-                        <span className="text-[10px] font-bold text-gray-400 truncate w-full mb-1 uppercase">
-                          {playerName}
-                        </span>
-                        <span
-                          className={`text-2xl font-black ${
-                            match.myScore > (match.opponentScore || 0)
-                              ? "text-cyan-600"
-                              : "text-gray-700"
-                          }`}
-                        >
-                          {match.myScore}
-                        </span>
+                    {/* --- [SỬA] BODY: SCOREBOARD WITH AVATARS --- */}
+                    <div className="flex items-center justify-between bg-gray-50 rounded-2xl p-2 mb-3 border border-gray-100">
+                      
+                      {/* Left: Me */}
+                      <div className="flex items-center gap-2 w-[45%] overflow-hidden">
+                        {/* Avatar */}
+                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-cyan-200 shadow-sm bg-white shrink-0">
+                           {renderHistoryAvatar((match as any).myAvatar)}
+                        </div>
+                        {/* Name & Score */}
+                        <div className="flex flex-col items-start min-w-0">
+                          <span className="text-[10px] font-bold text-gray-400 truncate w-full uppercase">
+                            {match.myName || playerName}
+                          </span>
+                          <span
+                            className={`text-2xl font-black leading-none ${
+                              match.myScore > (match.opponentScore ?? 0)
+                                ? "text-cyan-600"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {match.myScore}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-gray-300 font-black text-xl italic opacity-50">
+
+                      {/* Center: VS */}
+                      <div className="text-gray-300 font-black text-lg italic opacity-50 shrink-0">
                         VS
                       </div>
-                      <div className="flex flex-col items-end w-1/3">
-                        <span className="text-[10px] font-bold text-gray-400 truncate w-full text-right mb-1">
-                          {match.mode === "SOLO"
-                            ? "MÁY"
-                            : match.opponentName || "Đối thủ"}{" "}
-                          {/* Nếu ko có tên thì hiện "Đối thủ" thay vì "MÁY" */}
-                        </span>
-                        <span
-                          className={`text-2xl font-black ${
-                            (match.opponentScore ?? 0) > match.myScore
-                              ? "text-orange-500"
-                              : "text-gray-700"
-                          }`}
-                        >{match.mode === "SOLO" ? "-" : (match.opponentScore ?? 0)}
-                        </span>
+
+                      {/* Right: Opponent */}
+                      <div className="flex items-center justify-end gap-2 w-[45%] overflow-hidden">
+                        {/* Score & Name */}
+                        <div className="flex flex-col items-end min-w-0">
+                          <span className="text-[10px] font-bold text-gray-400 truncate w-full text-right uppercase">
+                            {match.mode === "SOLO"
+                              ? "MÁY"
+                              : match.opponentName || "Đối thủ"}
+                          </span>
+                          <span
+                            className={`text-2xl font-black leading-none ${
+                              (match.opponentScore ?? 0) > match.myScore
+                                ? "text-orange-500"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {match.mode === "SOLO"
+                              ? "-"
+                              : (match.opponentScore ?? 0)}
+                          </span>
+                        </div>
+                        {/* Avatar */}
+                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-200 shadow-sm bg-white shrink-0">
+                           {match.mode === "SOLO" 
+                              ? <div className="w-full h-full flex items-center justify-center text-xs">🤖</div> 
+                              : renderHistoryAvatar((match as any).opponentAvatar)
+                           }
+                        </div>
                       </div>
+
                     </div>
+                    {/* ------------------------------------- */}
 
                     {hasAnyItems && (
                       <div className="border-t border-dashed border-gray-200 pt-2 flex justify-between gap-4">
