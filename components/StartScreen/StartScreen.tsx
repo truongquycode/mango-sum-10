@@ -8,6 +8,7 @@ import { StartScreenProps, AccessLog } from '../StartScreen/types'; // Import ty
 import { TutorialModal } from '../StartScreen/TutorialModal';
 import { LogModal } from '../StartScreen/LogModal';
 import { NameInputModal } from '../StartScreen/NameInputModal';
+import { SettingsModal, ThemeType } from './SettingsModal';
 
 // Nếu bạn không tạo file types.ts riêng, hãy copy interface vào đây:
 /*
@@ -24,11 +25,11 @@ interface StartScreenProps {
 }
 */
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer, onOpenHistory, highScore }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onMultiplayer, onOpenHistory, highScore, currentTheme, onSetTheme }) => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
-
+const [showSettings, setShowSettings] = useState(false);
   // Tìm đến hàm handleConfirmStart và sửa lại như sau:
 const handleConfirmStart = (playerName: string) => {
     if (!playerName.trim()) {
@@ -46,11 +47,21 @@ const handleConfirmStart = (playerName: string) => {
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full p-4 bg-cyan-50 relative overflow-hidden select-none">
+        
       <div className="absolute top-10 left-10 w-32 h-32 bg-cyan-300 rounded-full opacity-50 blur-xl animate-pulse" />
       <div className="absolute bottom-20 right-10 w-48 h-48 bg-blue-300 rounded-full opacity-50 blur-xl" />
-
+      {/* [NEW] NÚT CÀI ĐẶT (Góc trên phải) */}
+      {!showTutorial && !showNameModal && !showLogModal && !showSettings && (
+         <button
+            onClick={() => setShowSettings(true)}
+            className="absolute top-4 right-4 z-20 w-12 h-12 bg-white rounded-full shadow-lg border-2 border-cyan-100 flex items-center justify-center text-2xl hover:scale-110 active:scale-95 transition-transform"
+            title="Cài đặt giao diện"
+         >
+            ⚙️
+         </button>
+      )}
       {/* --- MAIN MENU --- */}
-      {!showTutorial && !showNameModal && !showLogModal ? (
+      {!showTutorial && !showNameModal && !showLogModal &&!showSettings ? (
         <div className="z-10 text-center space-y-6 bg-white/80 backdrop-blur-sm p-8 md:p-10 rounded-3xl shadow-2xl border-4 border-cyan-200 max-w-md w-full animate-fade-in">
           <div>
             <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 drop-shadow-md mb-2 leading-tight tracking-tight transform -rotate-2">
@@ -110,6 +121,18 @@ const handleConfirmStart = (playerName: string) => {
       {showTutorial && (
         <TutorialModal 
             onClose={() => setShowTutorial(false)}
+        />
+      )}
+
+      {/* [NEW] MODAL CÀI ĐẶT */}
+      {showSettings && (
+        <SettingsModal
+          currentTheme={currentTheme}
+          onSelectTheme={(t) => {
+             onSetTheme(t);
+             // Không đóng modal ngay để người dùng thấy effect check
+          }}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

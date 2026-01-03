@@ -1,4 +1,5 @@
 // components/StartScreen/types.ts
+import { SettingsModal, ThemeType } from './SettingsModal';
 export interface AccessLog {
   name: string;
   timestamp: number;
@@ -11,4 +12,6 @@ export interface StartScreenProps {
   onMultiplayer: () => void;
   onOpenHistory: () => void;
   highScore: number;
+  currentTheme: ThemeType;
+  onSetTheme: (theme: ThemeType) => void;
 }

@@ -21,6 +21,7 @@ import {
   serverTimestamp,
   onChildAdded,
 } from "firebase/database";
+import { ThemeType } from "./components/StartScreen/SettingsModal";
 
 interface MockConnection {
   send: (data: any) => void;
@@ -60,6 +61,15 @@ export default function App() {
 
   const [matchDuration, setMatchDuration] = useState(0);
   const [matchItemsCount, setMatchItemsCount] = useState(0);
+
+  const [appTheme, setAppTheme] = useState<ThemeType>('DEFAULT');
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('mango-theme');
+    if (savedTheme === 'PIXEL' || savedTheme === 'PAPER') {
+       setAppTheme(savedTheme as ThemeType);
+    }
+  }, []);
 
   // Init
   useEffect(() => {
@@ -386,6 +396,11 @@ export default function App() {
     localStorage.setItem("mango-player-avatar", avatar);
   };
 
+  const handleSetTheme = (newTheme: ThemeType) => {
+     setAppTheme(newTheme);
+     localStorage.setItem('mango-theme', newTheme);
+  };
+
   return (
     <div className="h-[100dvh] w-full relative overflow-hidden bg-cyan-50">
       {gameState === GameState.MENU && (
@@ -394,6 +409,8 @@ export default function App() {
           onMultiplayer={handleOpenLobby}
           onOpenHistory={() => setGameState(GameState.HISTORY)}
           highScore={highScore}
+          currentTheme={appTheme}
+          onSetTheme={handleSetTheme}
         />
       )}
       {gameState === GameState.HISTORY && (
@@ -430,6 +447,7 @@ export default function App() {
           opponentName={opponentName}
           myAvatar={myAvatar}
           opponentAvatar={opponentAvatar}
+          theme={appTheme}
         />
       )}
 
