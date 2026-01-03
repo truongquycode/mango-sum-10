@@ -2,12 +2,12 @@
 import React from 'react';
 import { Button } from '../UI/Button';
 // Import các icon để làm demo (Preview)
-import { MangoIcon } from '../MangoIcon';
-import { PixelMangoIcon } from '../PixelMangoIcon';
-import { PaperMangoIcon } from '../PaperMangoIcon';
-import { KawaiiMangoIcon } from '../KawaiiMangoIcon';
-import { PokemonMangoIcon } from '../PokemonMangoIcon';
-import { DragonBallMangoIcon } from '../DragonBallMangoIcon';
+import { MangoIcon } from '../FruitIcons/MangoIcon';
+import { PixelMangoIcon } from '../FruitIcons/PixelMangoIcon';
+import { PaperMangoIcon } from '../FruitIcons/PaperMangoIcon';
+import { KawaiiMangoIcon } from '../FruitIcons/KawaiiMangoIcon';
+import { PokemonMangoIcon } from '../FruitIcons/PokemonMangoIcon';
+import { DragonBallMangoIcon } from '../FruitIcons/DragonBallMangoIcon';
 
 
 

@@ -1,6 +1,6 @@
 // components/PaperMangoIcon.tsx
 import React from 'react';
-import { MANGO_COLORS } from '../constants';
+import { MANGO_COLORS } from '../../constants';
 
 interface MangoIconProps {
   value: number;

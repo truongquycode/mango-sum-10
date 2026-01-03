@@ -16,14 +16,14 @@ import {
   GameItem,
   ItemType,
 } from "../types";
-import { MangoIcon } from "./MangoIcon";
-import { PixelMangoIcon } from "./PixelMangoIcon"; // <--- Thêm dòng này
-import { PaperMangoIcon } from "./PaperMangoIcon"; // <--- Thêm dòng này
+import { MangoIcon } from "./FruitIcons/MangoIcon";
+import { PixelMangoIcon } from "./FruitIcons/PixelMangoIcon"; // <--- Thêm dòng này
+import { PaperMangoIcon } from "./FruitIcons/PaperMangoIcon"; // <--- Thêm dòng này
 import { ITEM_CONFIG, REACTION_EMOJIS } from "../constants";
 import { ThemeType } from "./StartScreen/SettingsModal";
-import { KawaiiMangoIcon } from './KawaiiMangoIcon';
-import { PokemonMangoIcon } from './PokemonMangoIcon';
-import { DragonBallMangoIcon } from './DragonBallMangoIcon';
+import { KawaiiMangoIcon } from './FruitIcons/KawaiiMangoIcon';
+import { PokemonMangoIcon } from './FruitIcons/PokemonMangoIcon';
+import { DragonBallMangoIcon } from './FruitIcons/DragonBallMangoIcon';
 
 
 
