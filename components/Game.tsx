@@ -159,10 +159,10 @@ export const Game: React.FC<GameProps> = ({
   opponentAvatar = "👤",
   theme = "DEFAULT",
 }) => {
-  const [grid, setGrid] = useState<MangoCell[][]>(
-    isHost ? createInitialGrid() : []
-  );
+  // 1. KHAI BÁO TẤT CẢ CÁC STATE VÀ HOOKS Ở ĐÂY
+  const [grid, setGrid] = useState<MangoCell[][]>(isHost ? createInitialGrid() : []);
   const [score, setScore] = useState(0);
+  
   const [opponentScore, setOpponentScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number>(GAME_DURATION_SECONDS);
   const [opponentTimeLeft, setOpponentTimeLeft] = useState(
@@ -984,26 +984,26 @@ export const Game: React.FC<GameProps> = ({
   })();
   const isValidSum = currentSum === TARGET_SUM;
 
+  
+
+  // [QUAN TRỌNG] Đặt logic chọn icon Ở ĐÂY (TRƯỚC khi return bất cứ cái gì)
+  const FruitIcon = React.useMemo(() => {
+      switch (theme) {
+          case 'KAWAII': return KawaiiMangoIcon;
+          case 'PIXEL': return PixelMangoIcon;
+          case 'PAPER': return PaperMangoIcon;
+          case 'POKEMON': return PokemonMangoIcon;
+          case 'DRAGONBALL': return DragonBallMangoIcon;
+          default: return MangoIcon;
+      }
+  }, [theme]);
+
   if (grid.length === 0)
     return (
       <div className="flex items-center justify-center h-full text-cyan-600 font-bold animate-pulse text-xl bg-cyan-50">
         Đang tải bản đồ...
       </div>
     );
-
-  const FruitIcon = React.useMemo(() => {
-    switch (theme) {
-      case 'DRAGONBALL': return DragonBallMangoIcon;
-      case 'POKEMON': return PokemonMangoIcon;
-      case 'KAWAII': return KawaiiMangoIcon;
-      case "PIXEL":
-        return PixelMangoIcon;
-      case "PAPER":
-        return PaperMangoIcon;
-      default:
-        return MangoIcon;
-    }
-  }, [theme]);
   return (
     <div className="h-full w-full flex flex-col bg-cyan-50 relative overflow-hidden font-sans select-none">
       {/* 1. ANIMATED BACKGROUND BLOBS */}
@@ -1275,7 +1275,7 @@ export const Game: React.FC<GameProps> = ({
                   opponentTimeLeft < 10 ? "text-red-400" : "text-gray-400"
                 } whitespace-nowrap flex flex-col items-center leading-none`}
               >
-                <span>⏳</span>
+                {/* <span>⏳</span> */}
                 {Math.ceil(opponentTimeLeft)}s
               </span>
             </div>
